@@ -4,6 +4,10 @@ import SwiftUI
 struct AddDownloadPanel: View {
     @Environment(DownloadStore.self) private var store
     @State private var address = ""
+    /// What the server said about each batch link, filled in as the answers arrive.
+    @State private var batchInfo: [URL: Probe.Info] = [:]
+    /// Why a batch link couldn't be checked.
+    @State private var batchErrors: [URL: String] = [:]
     @State private var connections = AppSettings.shared.connections
     @State private var startNow = true
     /// Folder picked for this download; nil uses the default from Settings.
@@ -14,6 +18,8 @@ struct AddDownloadPanel: View {
     /// Bumped to probe the link again (after signing in).
     @State private var probeAttempt = 0
     @State private var appeared = false
+    /// The address was just filled in from the clipboard, not typed or pasted.
+    @State private var prefilled = false
     @FocusState private var addressFocused: Bool
 
     private enum ProbeState {
@@ -26,9 +32,16 @@ struct AddDownloadPanel: View {
         return false
     }
 
-    /// Everything typed or pasted, split on spaces and new lines.
-    private var words: [String] {
-        address.split(whereSeparator: \.isWhitespace).map(String.init)
+    /// Everything typed or pasted, split into separate entries.
+    private var words: [String] { Self.words(in: address) }
+
+    /// Splits on spaces and new lines, and on commas or semicolons between links
+    /// ("a.com/x, b.com/y" or "a.com/x;b.com/y"). A comma inside a link is kept.
+    private static func words(in text: String) -> [String] {
+        text.split(whereSeparator: \.isWhitespace).flatMap { word in
+            word.split(separator: /[,;](?=https?:\/\/)/).map { $0.trimmingCharacters(in: CharacterSet(charactersIn: ",;")) }
+        }
+        .filter { !$0.isEmpty }
     }
 
     /// The valid links among `words`, without repeats.
@@ -46,7 +59,7 @@ struct AddDownloadPanel: View {
     /// The link, when exactly one was entered.
     private var parsedURL: URL? { links.count == 1 ? links.first : nil }
 
-    /// Several links pasted at once: they're added together without checking each first.
+    /// Several links pasted at once: they're added together, checked in the background for their names.
     private var isBatch: Bool { links.count > 1 }
 
     /// Batch links that aren't in the list yet.
@@ -70,12 +83,19 @@ struct AddDownloadPanel: View {
             withAnimation(.easeOut(duration: 0.18)) { appeared = true }
             // Pre-fill copied links, as long as the clipboard holds nothing but links.
             if let s = NSPasteboard.general.string(forType: .string) {
-                let copied = s.split(whereSeparator: \.isWhitespace).map(String.init)
+                let copied = Self.words(in: s)
                 if !copied.isEmpty, copied.count <= 200, copied.allSatisfy({ Self.link($0) != nil }) {
-                    address = copied.joined(separator: "\n")
+                    prefilled = true
+                    address = copied.joined(separator: " ")
+                    showAddressStart(selectingAll: true)
                 }
             }
             addressFocused = true
+        }
+        .task(id: isBatch ? newLinks : []) {
+            guard isBatch else { return }
+            try? await Task.sleep(for: .milliseconds(400))
+            await probeBatch(newLinks.filter { batchInfo[$0] == nil })
         }
         .task(id: "\(probeAttempt) \(address)") {
             guard let url = parsedURL else { probe = .idle; return }
@@ -98,10 +118,17 @@ struct AddDownloadPanel: View {
 
             VStack(alignment: .leading, spacing: 6) {
                 Text("Address").font(.system(size: 12)).foregroundStyle(Theme.text2)
-                TextField(text: $address, prompt: Text("Paste a link, or several on separate lines").foregroundStyle(Theme.text3), axis: .vertical) { EmptyView() }
+                TextField(text: $address, prompt: Text("Paste a link, or several at once").foregroundStyle(Theme.text3)) { EmptyView() }
                     .textFieldStyle(.plain)
-                    .lineLimit(1...5)
                     .focused($addressFocused)
+                    .onChange(of: address) { old, new in
+                        // A paste of whole links: show their start rather than the tail of the last one.
+                        if prefilled {
+                            prefilled = false
+                        } else if new.count - old.count > 1, !links.isEmpty {
+                            showAddressStart()
+                        }
+                    }
                     .padding(.horizontal, 9)
                     .padding(.vertical, 6)
                     .frame(minHeight: 28)
@@ -159,11 +186,21 @@ struct AddDownloadPanel: View {
 
     /// Warns when the link is already in the list, or the file already exists where it'll be saved.
     @ViewBuilder private var duplicateNotice: some View {
+        let repeats = words.compactMap { Self.link($0) }.count - links.count
+        if repeats > 0 {
+            notice("The same link was entered more than once. It's added only once.") { EmptyView() }
+        }
         if isBatch {
             let skipped = links.count - newLinks.count
             if skipped > 0 {
                 notice(newLinks.isEmpty ? "All of these links are already in your list."
                        : "\(skipped) of these link\(skipped == 1 ? " is" : "s are") already in your list and will be skipped.") { EmptyView() }
+            }
+            let names = newLinks.map(batchName)
+            if let repeated = names.first(where: { name in names.filter { $0 == name }.count > 1 }) {
+                let count = names.filter { $0 == repeated }.count
+                let shown = repeated.count > 40 ? repeated.prefix(20) + "…" + repeated.suffix(16) : repeated
+                notice("\(count) links are named “\(shown)” and may be the same file. Each is saved as a separate copy.") { EmptyView() }
             }
         } else if let url = parsedURL, let existing = store.existing(url: url) {
             notice("This link is already in your list (\(existing.status.label.lowercased())).") {
@@ -241,19 +278,68 @@ struct AddDownloadPanel: View {
         }
     }
 
+    /// A batch link's name: the server's answer once it's in, a guess from the link until then.
+    private func batchName(_ url: URL) -> String {
+        batchInfo[url]?.name ?? Self.name(url)
+    }
+
+    /// Asks the servers for the links' names and sizes: one link at a time per server, as
+    /// some refuse several requests at once, and different servers in parallel.
+    private func probeBatch(_ urls: [URL]) async {
+        let byHost = Dictionary(grouping: urls) { $0.host() ?? "" }
+        await withTaskGroup(of: Void.self) { group in
+            for hostURLs in byHost.values {
+                group.addTask { @MainActor in
+                    for url in hostURLs {
+                        guard !Task.isCancelled else { return }
+                        do {
+                            batchInfo[url] = try await Probe.run(url)
+                            batchErrors[url] = nil
+                        } catch {
+                            if !Task.isCancelled { batchErrors[url] = error.localizedDescription }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Scrolls the address field back to its start, so a pasted link shows its beginning rather
+    /// than the tail of the last one. The cursor stays at the end, so a further paste goes after
+    /// the text; text filled in from the clipboard is selected instead, so a paste replaces it.
+    /// Deferred until the field has taken the new text.
+    private func showAddressStart(selectingAll: Bool = false) {
+        DispatchQueue.main.async {
+            guard let editor = NSApp.keyWindow?.firstResponder as? NSTextView, editor.isFieldEditor else { return }
+            let length = (editor.string as NSString).length
+            editor.setSelectedRange(selectingAll ? NSRange(location: 0, length: length) : NSRange(location: length, length: 0))
+            editor.scrollRangeToVisible(NSRange(location: 0, length: 0))
+        }
+    }
+
+    /// The name a link is shown under before its server is asked.
+    private static func name(_ url: URL) -> String {
+        url.lastPathComponent.isEmpty || url.lastPathComponent == "/" ? url.host() ?? "" : url.lastPathComponent
+    }
+
     /// The links about to be added, with how many more there are.
     private var batchPreview: some View {
         let shown = 4
         return VStack(alignment: .leading, spacing: 8) {
             Text("\(links.count) links").font(.system(size: 12, weight: .semibold))
             ForEach(links.prefix(shown), id: \.self) { url in
-                let name = url.lastPathComponent.isEmpty || url.lastPathComponent == "/" ? url.host() ?? "" : url.lastPathComponent
+                let name = batchName(url)
                 HStack(spacing: 8) {
                     FileIcon(ext: String(fileExtension(name).uppercased().prefix(4)), kind: .of(name), width: 16, height: 20, band: 7, fontSize: 4.5, radius: 3)
                     Text(name).lineLimit(1).truncationMode(.middle)
                     Spacer(minLength: 4)
-                    Text(store.existing(url: url) != nil ? "In list" : url.host() ?? "")
-                        .font(.system(size: 11)).foregroundStyle(Theme.text2).lineLimit(1)
+                    if store.existing(url: url) != nil {
+                        Text("In list").font(.system(size: 11)).foregroundStyle(Theme.text2)
+                    } else if let error = batchErrors[url] {
+                        Text("Couldn't check").font(.system(size: 11)).foregroundStyle(Theme.red).help(error)
+                    } else {
+                        Text(url.host() ?? "").font(.system(size: 11)).foregroundStyle(Theme.text2).lineLimit(1)
+                    }
                 }
                 .opacity(store.existing(url: url) != nil ? 0.5 : 1)
             }
@@ -280,7 +366,7 @@ struct AddDownloadPanel: View {
         if isBatch {
             // Queued rather than started, so the simultaneous-download limit applies.
             for url in newLinks {
-                store.add(url: url, probe: nil, connections: connections, startNow: false, folder: folder)
+                store.add(url: url, probe: batchInfo[url], connections: connections, startNow: false, folder: folder)
             }
             return close()
         }
