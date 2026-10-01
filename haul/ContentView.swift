@@ -82,6 +82,7 @@ private struct SidebarPanel: View {
             }
             .scrollIndicators(.never)
 
+            SponsorRow()
             DiskSpaceView()
         }
         .frame(width: 208)
@@ -125,6 +126,31 @@ private struct SidebarPanel: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+}
+
+private struct SponsorRow: View {
+    @State private var hovering = false
+
+    var body: some View {
+        Button {
+            NSWorkspace.shared.open(.sponsor)
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "heart.fill").font(.system(size: 10)).foregroundStyle(Theme.red)
+                Text("Sponsor")
+                Spacer()
+            }
+            .font(.system(size: 12))
+            .foregroundStyle(hovering ? Theme.text2 : Theme.text3)
+            .padding(.horizontal, 14)
+            .frame(height: 28)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .help("Support Haul on GitHub Sponsors")
+        .padding(.bottom, 6)
     }
 }
 

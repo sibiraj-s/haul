@@ -2,7 +2,7 @@ import SwiftUI
 
 struct SettingsView: View {
     enum Pane: String, CaseIterable {
-        case general = "General", downloads = "Downloads", network = "Network", notifications = "Notifications"
+        case general = "General", downloads = "Downloads", network = "Network", notifications = "Notifications", about = "About"
 
         var symbol: String {
             switch self {
@@ -10,6 +10,7 @@ struct SettingsView: View {
             case .downloads: "arrow.down.to.line"
             case .network: "globe"
             case .notifications: "bell"
+            case .about: "info.circle"
             }
         }
     }
@@ -60,6 +61,7 @@ struct SettingsView: View {
                 case .downloads: DownloadSettings()
                 case .network: NetworkSettings()
                 case .notifications: NotificationSettings()
+                case .about: AboutSettings()
                 }
             }
             .padding(.horizontal, 20)
@@ -313,6 +315,33 @@ private struct NetworkSettings: View {
                 DesignSwitch(isOn: $settings.skipWebPages)
             }
         }
+    }
+}
+
+private struct AboutSettings: View {
+    var body: some View {
+        VStack(spacing: 0) {
+            Image(nsImage: NSApp.applicationIconImage)
+                .resizable()
+                .frame(width: 96, height: 96)
+            Text("Haul")
+                .font(.system(size: 20, weight: .semibold))
+                .padding(.top, 8)
+            Text("Version \(Updater.shared.currentVersion)")
+                .font(.system(size: 12))
+                .foregroundStyle(Theme.text2)
+                .textSelection(.enabled)
+                .padding(.top, 2)
+            Text("Haul is free and open source. Sponsoring helps keep it that way.")
+                .font(.system(size: 12))
+                .foregroundStyle(Theme.text2)
+                .multilineTextAlignment(.center)
+                .padding(.top, 18)
+            PillButton(title: "♥ Sponsor Haul", prominent: true) { NSWorkspace.shared.open(.sponsor) }
+                .padding(.top, 12)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 12)
     }
 }
 

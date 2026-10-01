@@ -45,6 +45,10 @@ struct HaulApp: App {
     }
 }
 
+extension URL {
+    static let sponsor = URL(string: "https://github.com/sponsors/sibiraj-s")!
+}
+
 private struct HaulCommands: Commands {
     let store: DownloadStore
 
@@ -78,6 +82,11 @@ private struct HaulCommands: Commands {
         CommandGroup(before: .windowList) {
             Button("Show Main Window") { store.showMainWindow() }
                 .keyboardShortcut("0")
+        }
+        CommandGroup(after: .help) {
+            Button("Sponsor Haul…") {
+                NSWorkspace.shared.open(.sponsor)
+            }
         }
     }
 }
