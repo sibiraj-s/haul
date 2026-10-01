@@ -4,7 +4,6 @@
 #   ./build.sh            version from the latest v* tag (fails if there is none)
 #   ./build.sh 1.2.0      explicit version
 #
-# BUILD_NUMBER sets the build number (default: commit count).
 # The app is signed ad hoc; Gatekeeper will ask users to approve it on first launch.
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -19,7 +18,6 @@ if [[ ! "$version" =~ ^[0-9]+(\.[0-9]+){0,2}$ ]]; then
     echo "error: version must look like 1.2.3 (got '$version')" >&2
     exit 1
 fi
-build_number="${BUILD_NUMBER:-$(git rev-list --count HEAD 2>/dev/null || echo 1)}"
 
 out=build
 app="$out/DerivedData/Build/Products/Release/Haul.app"
@@ -36,13 +34,13 @@ unregister() {
 }
 trap unregister EXIT
 
-echo "==> Building Haul $version ($build_number)"
+echo "==> Building Haul $version"
 rm -rf "$stage" "$dmg"
 xcodebuild -project haul.xcodeproj -scheme Haul -configuration Release \
     -destination 'generic/platform=macOS' -derivedDataPath "$out/DerivedData" \
     ARCHS=arm64 \
     CODE_SIGN_IDENTITY=- CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO \
-    MARKETING_VERSION="$version" CURRENT_PROJECT_VERSION="$build_number" \
+    MARKETING_VERSION="$version" \
     -quiet build
 
 echo "==> Verifying"
