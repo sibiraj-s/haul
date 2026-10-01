@@ -1,0 +1,65 @@
+name: Release
+
+on:
+  push:
+    branches: [master]
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  changesets:
+    name: Version or tag
+    runs-on: ubuntu-latest
+    outputs:
+      published: ${{ steps.changesets.outputs.published }}
+      version: ${{ fromJSON(steps.changesets.outputs.published-packages)[0].version }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      # With pending changesets: opens or updates the "Version Packages" pull request.
+      # Once that's merged: tags v<version> and creates the GitHub Release from CHANGELOG.md.
+      - id: changesets
+        uses: changesets/action@v2
+        with:
+          publish-script: npx changeset publish
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build:
+    name: Build and attach DMG
+    needs: changesets
+    if: needs.changesets.outputs.published == 'true'
+    runs-on: xcode-27
+    timeout-minutes: 30
+    env:
+      VERSION: ${{ needs.changesets.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: v${{ needs.changesets.outputs.version }}
+          # Full history: the build number is the commit count.
+          fetch-depth: 0
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Build
+        run: ./build.sh "$VERSION"
+
+      - name: Upload DMG to the release
+        run: gh release upload "v$VERSION" "build/Haul-$VERSION.dmg"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

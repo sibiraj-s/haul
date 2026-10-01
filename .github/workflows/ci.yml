@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: Build and test
+    runs-on: xcode-27
+    timeout-minutes: 30
+    env:
+      # No certificates on the runner: sign ad hoc ("Sign to Run Locally").
+      XCODEBUILD: xcodebuild -project haul.xcodeproj -scheme Haul -destination platform=macOS CODE_SIGN_IDENTITY=-
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Test
+        run: $XCODEBUILD test
+
+      - name: Build (Release)
+        run: $XCODEBUILD -configuration Release build
