@@ -17,7 +17,7 @@
                BlueprintIdentifier = "000000000000000100000000"
                BuildableName = "Haul.app"
                BlueprintName = "Haul"
-               ReferencedContainer = "container:haul.xcodeproj">
+               ReferencedContainer = "container:Haul.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -35,7 +35,7 @@
                BlueprintIdentifier = "000000000000000200000000"
                BuildableName = "HaulTests.xctest"
                BlueprintName = "HaulTests"
-               ReferencedContainer = "container:haul.xcodeproj">
+               ReferencedContainer = "container:Haul.xcodeproj">
             </BuildableReference>
          </TestableReference>
       </Testables>
@@ -57,7 +57,7 @@
             BlueprintIdentifier = "000000000000000100000000"
             BuildableName = "Haul.app"
             BlueprintName = "Haul"
-            ReferencedContainer = "container:haul.xcodeproj">
+            ReferencedContainer = "container:Haul.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -74,7 +74,7 @@
             BlueprintIdentifier = "000000000000000100000000"
             BuildableName = "Haul.app"
             BlueprintName = "Haul"
-            ReferencedContainer = "container:haul.xcodeproj">
+            ReferencedContainer = "container:Haul.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>

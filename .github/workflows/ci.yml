@@ -18,7 +18,7 @@ jobs:
     timeout-minutes: 30
     env:
       # No certificates on the runner: sign ad hoc ("Sign to Run Locally").
-      XCODEBUILD: xcodebuild -project haul.xcodeproj -scheme Haul -destination platform=macOS CODE_SIGN_IDENTITY=-
+      XCODEBUILD: xcodebuild -project Haul.xcodeproj -scheme Haul -destination platform=macOS CODE_SIGN_IDENTITY=-
 
     steps:
       - uses: actions/checkout@v7

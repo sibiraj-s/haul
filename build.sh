@@ -39,7 +39,7 @@ trap unregister EXIT
 
 echo "==> Building Haul $version ($build_number)"
 rm -rf "$stage" "$dmg"
-xcodebuild -project haul.xcodeproj -scheme Haul -configuration Release \
+xcodebuild -project Haul.xcodeproj -scheme Haul -configuration Release \
     -destination 'generic/platform=macOS' -derivedDataPath "$out/DerivedData" \
     ARCHS=arm64 \
     CODE_SIGN_IDENTITY=- CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO \

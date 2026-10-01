@@ -1,0 +1,173 @@
+@import 'tailwindcss';
+
+/* Colours are CSS variables so they can follow the theme: the page follows the system,
+   and the demo (.hd) sets its own from its Appearance setting. Utilities like bg-win or
+   text-text2 resolve to whichever value is in scope. */
+@theme inline {
+  --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif;
+  --font-display: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', sans-serif;
+
+  --color-accent: var(--accent);
+  --color-bg: var(--bg);
+  --color-bg2: var(--bg2);
+  --color-card: var(--card);
+  --color-text: var(--text);
+  --color-text2: var(--text2);
+  --color-text3: var(--text3);
+  --color-sep: var(--sep);
+
+  --color-win: var(--win);
+  --color-side: var(--side);
+  --color-page: var(--page);
+  --color-glass: var(--glass);
+  --color-glass-border: var(--glassB);
+  --color-hover: var(--hover);
+  --color-selg: var(--selg);
+  --color-field: var(--field);
+  --color-track: var(--track);
+  --color-ctl: var(--ctl);
+  --color-ctl-border: var(--ctlB);
+  --color-group: var(--group);
+  --color-red: var(--red);
+  --color-green: var(--green);
+  --color-orange: var(--orange);
+  --color-sponsor: #e8437a;
+
+  --shadow-ctl: var(--ctlShadow);
+  --shadow-window: var(--shadow);
+  --shadow-menu: 0 0 0 0.5px var(--glassB), 0 12px 36px rgba(0, 0, 0, 0.25);
+  --shadow-icon:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35), inset 0 0 0 0.5px rgba(0, 0, 0, 0.15), 0 2px 6px rgba(0, 0, 0, 0.15);
+
+  --animate-sheet-in: sheet-in 0.18s ease-out;
+  --animate-note-in: note-in 0.3s ease-out;
+
+  @keyframes sheet-in {
+    from {
+      transform: translateY(-10px) scale(0.98);
+      opacity: 0;
+    }
+    to {
+      transform: none;
+      opacity: 1;
+    }
+  }
+  @keyframes note-in {
+    from {
+      transform: translateX(30px);
+      opacity: 0;
+    }
+    to {
+      transform: none;
+      opacity: 1;
+    }
+  }
+}
+
+@layer base {
+  :root {
+    --accent: #0a7aff;
+    --bg: #fff;
+    --bg2: #f5f5f7;
+    --card: #fff;
+    --text: #1d1d1f;
+    --text2: rgba(0, 0, 0, 0.58);
+    --text3: rgba(0, 0, 0, 0.34);
+    --sep: rgba(0, 0, 0, 0.08);
+    color-scheme: light dark;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) {
+      --bg: #101012;
+      --bg2: #1a1a1d;
+      --card: #1e1e21;
+      --text: #f5f5f7;
+      --text2: rgba(255, 255, 255, 0.62);
+      --text3: rgba(255, 255, 255, 0.34);
+      --sep: rgba(255, 255, 255, 0.1);
+    }
+  }
+  :root[data-theme='dark'] {
+    --bg: #101012;
+    --bg2: #1a1a1d;
+    --card: #1e1e21;
+    --text: #f5f5f7;
+    --text2: rgba(255, 255, 255, 0.62);
+    --text3: rgba(255, 255, 255, 0.34);
+    --sep: rgba(255, 255, 255, 0.1);
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+  }
+  body {
+    background: var(--bg);
+    color: var(--text);
+  }
+  section[id] {
+    scroll-margin-top: 64px;
+  }
+
+  /* The demo's macOS palettes (from the design). */
+  .hd[data-theme='light'] {
+    --desk: linear-gradient(160deg, #b7c4d4 0%, #d8d3cb 55%, #c9b8a6 100%);
+    --win: #fff;
+    --side: #f2f2f5;
+    --page: #fff;
+    --glass: rgba(250, 250, 252, 0.66);
+    --glassB: rgba(255, 255, 255, 0.6);
+    --text: #1d1d1f;
+    --text2: rgba(0, 0, 0, 0.56);
+    --text3: rgba(0, 0, 0, 0.34);
+    --sep: rgba(0, 0, 0, 0.08);
+    --hover: rgba(0, 0, 0, 0.045);
+    --selg: rgba(0, 0, 0, 0.075);
+    --field: rgba(0, 0, 0, 0.05);
+    --track: rgba(0, 0, 0, 0.09);
+    --ctl: #fff;
+    --ctlB: rgba(0, 0, 0, 0.1);
+    --group: rgba(0, 0, 0, 0.035);
+    --shadow: 0 30px 80px rgba(0, 0, 0, 0.26), 0 0 0 0.5px rgba(0, 0, 0, 0.2);
+    --ctlShadow: 0 0 0 0.5px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.08);
+    --red: #e5372d;
+    --green: #2a9d48;
+    --orange: #e08a00;
+  }
+  .hd[data-theme='dark'] {
+    --desk: linear-gradient(160deg, #1a2231 0%, #27222f 55%, #36282a 100%);
+    --win: #1e1e21;
+    --side: #29292d;
+    --page: #3a3a3f;
+    --glass: rgba(38, 38, 42, 0.62);
+    --glassB: rgba(255, 255, 255, 0.12);
+    --text: #f5f5f7;
+    --text2: rgba(255, 255, 255, 0.6);
+    --text3: rgba(255, 255, 255, 0.34);
+    --sep: rgba(255, 255, 255, 0.08);
+    --hover: rgba(255, 255, 255, 0.06);
+    --selg: rgba(255, 255, 255, 0.1);
+    --field: rgba(255, 255, 255, 0.08);
+    --track: rgba(255, 255, 255, 0.14);
+    --ctl: rgba(255, 255, 255, 0.09);
+    --ctlB: rgba(255, 255, 255, 0.14);
+    --group: rgba(255, 255, 255, 0.045);
+    --shadow: 0 30px 80px rgba(0, 0, 0, 0.6), 0 0 0 0.5px rgba(255, 255, 255, 0.16);
+    --ctlShadow: 0 0 0 0.5px rgba(255, 255, 255, 0.12), 0 1px 3px rgba(0, 0, 0, 0.3);
+    --red: #ff5147;
+    --green: #3cc760;
+    --orange: #ffa21a;
+  }
+  .hd {
+    background: var(--desk);
+  }
+  .hd button {
+    cursor: default;
+  }
+}
+
+@utility glass {
+  background: var(--glass);
+  backdrop-filter: blur(30px) saturate(1.8);
+  -webkit-backdrop-filter: blur(30px) saturate(1.8);
+}
