@@ -49,7 +49,14 @@ private struct HaulCommands: Commands {
     let store: DownloadStore
 
     var body: some Commands {
-        CommandGroup(after: .appInfo) {
+        CommandGroup(replacing: .appInfo) {
+            Button("About Haul") {
+                // The standard panel adds the build number in parentheses; it's the same as the version.
+                NSApp.orderFrontStandardAboutPanel(options: [
+                    .applicationVersion: "Version \(Updater.shared.currentVersion)",
+                    .version: "",
+                ])
+            }
             Button("Check for Updates…") { Updater.shared.checkNow() }
         }
         CommandGroup(replacing: .appSettings) {
