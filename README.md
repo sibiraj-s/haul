@@ -4,6 +4,8 @@
 
 A native download manager for macOS, built with SwiftUI.
 
+![Haul downloading a file over eight connections](./screenshot.png)
+
 ## Features
 
 - Multi-connection downloads that pause and resume, including across relaunches
