@@ -147,7 +147,6 @@ private struct GeneralSettings: View {
             }
         }
         DesignGroup {
-            SettingRow(title: "Ask before removing downloads") { DesignSwitch(isOn: $settings.confirmRemove) }
             SettingRow(title: "Remove finished downloads from list", caption: "Only clears the list. Files stay where they were saved.") {
                 HStack(spacing: 8) {
                     if settings.removeFinished == .afterDays {
@@ -173,6 +172,7 @@ private struct GeneralSettings: View {
             SettingRow(title: "Remove downloads whose file was deleted", caption: "Also when the file is moved or renamed in Finder.") {
                 DesignSwitch(isOn: $settings.removeDeleted)
             }
+            SettingRow(title: "Ask before removing downloads") { DesignSwitch(isOn: $settings.confirmRemove) }
         }
         DesignGroup {
             SettingRow(title: "Check for updates automatically", caption: "Once a day, from Haul's GitHub releases.") {
@@ -254,6 +254,9 @@ private struct DownloadSettings: View {
             }
             SettingRow(title: "Record where files came from", caption: "Shown as “Where from” in Finder's Get Info.") {
                 DesignSwitch(isOn: $settings.recordSource)
+            }
+            SettingRow(title: "Skip web pages", caption: "Links that open an HTML page instead of a file aren't saved.") {
+                DesignSwitch(isOn: $settings.skipWebPages)
             }
         }
         DesignGroup {
@@ -341,9 +344,6 @@ private struct NetworkSettings: View {
         DesignGroup {
             SettingRow(title: "Retry failed downloads", caption: "Up to \(DownloadStore.maxRetries) times after a dropped connection or server error.") {
                 DesignSwitch(isOn: $settings.autoRetry)
-            }
-            SettingRow(title: "Skip web pages", caption: "Links that open an HTML page instead of a file aren't saved.") {
-                DesignSwitch(isOn: $settings.skipWebPages)
             }
         }
     }
