@@ -188,12 +188,22 @@ final class DownloadStore {
     /// `trashFile` also moves a finished download's file to the Trash.
     func remove(_ id: UUID, trashFile: Bool = false) {
         guard let i = index(id) else { return }
-        stopEngine(at: i)
-        if items[i].status != .completed { try? FileManager.default.removeItem(at: partURL(id)) }
         if trashFile, items[i].status == .completed, let file = items[i].fileURL {
             _ = destinationFolder(for: items[i])  // makes sure a picked folder's sandbox access is active
-            try? FileManager.default.trashItem(at: file, resultingItemURL: nil)
+            do {
+                try FileManager.default.trashItem(at: file, resultingItemURL: nil)
+            } catch where FileManager.default.fileExists(atPath: file.path) {
+                // Keep the entry so the file can still be found from the list.
+                let alert = NSAlert()
+                alert.messageText = "Couldn't move “\(items[i].name)” to the Trash"
+                alert.informativeText = "\(error.localizedDescription) It's still in the list."
+                NSApp.activate()
+                alert.runModal()
+                return
+            } catch {}  // Already gone, so there's nothing left to trash.
         }
+        stopEngine(at: i)
+        if items[i].status != .completed { try? FileManager.default.removeItem(at: partURL(id)) }
         items.remove(at: i)
         if selection == id { selection = items.indices.contains(i) ? items[i].id : items.last?.id }
         dirty = true
