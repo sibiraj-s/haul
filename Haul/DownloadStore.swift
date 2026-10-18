@@ -24,7 +24,8 @@ final class DownloadStore {
 
     let settings = AppSettings.shared
     @ObservationIgnored private var engines: [UUID: SegmentedDownloader] = [:]
-    @ObservationIgnored private var probing: Set<UUID> = []
+    /// Downloads whose probe is in flight, with a token for that probe so a stale one can tell it was superseded.
+    @ObservationIgnored private var probing: [UUID: UUID] = [:]
     @ObservationIgnored private let limiter = RateLimiter()
     /// Recent (bytes, time) readings per download; speed is measured across this window like curl's progress meter.
     @ObservationIgnored private var samples: [UUID: [(bytes: Int64, at: Date)]] = [:]
@@ -463,7 +464,7 @@ final class DownloadStore {
     // MARK: - Engine lifecycle
 
     private func begin(_ id: UUID) {
-        guard let i = index(id), engines[id] == nil, !probing.contains(id) else { return }
+        guard let i = index(id), engines[id] == nil, probing[id] == nil else { return }
         items[i].status = .downloading
         items[i].startedAt = .now
         items[i].error = nil
@@ -474,18 +475,20 @@ final class DownloadStore {
         let d = items[i]
         // Fresh downloads, and ones whose server can't resume, need (re)probing first.
         guard d.segments.isEmpty || (!d.resumable && d.received > 0) else { return launchEngine(id) }
-        probing.insert(id)
+        let token = UUID()
+        probing[id] = token
         Task {
-            defer { probing.remove(id) }
+            // A pause and resume while probing starts a new probe; only the latest one may act.
+            defer { if probing[id] == token { probing[id] = nil } }
             do {
                 let info = try await Probe.run(d.url)
-                guard let j = index(id), items[j].status == .downloading else { return }
+                guard probing[id] == token, let j = index(id), items[j].status == .downloading else { return }
                 if info.isWebPage && settings.skipWebPages { return fail(j, DownloadError.webPage) }
                 items[j].apply(info)
                 try? FileManager.default.removeItem(at: partURL(id))
                 launchEngine(id)
             } catch {
-                guard let j = index(id), items[j].status == .downloading else { return }
+                guard probing[id] == token, let j = index(id), items[j].status == .downloading else { return }
                 fail(j, error)
             }
         }
@@ -532,7 +535,7 @@ final class DownloadStore {
             engine.cancel()
             items[i].segments = engine.snapshot()
         }
-        probing.remove(id)
+        probing[id] = nil
         items[i].speed = 0
         items[i].liveConnections = 0
         dirty = true
