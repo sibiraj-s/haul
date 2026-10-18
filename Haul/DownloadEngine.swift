@@ -109,16 +109,7 @@ nonisolated enum Probe {
         }
         guard (200..<300).contains(http.statusCode) else { throw DownloadError.response(http) }
 
-        var size: Int64?
-        var ranges = false
-        if http.statusCode == 206,
-           let total = http.value(forHTTPHeaderField: "Content-Range")?.split(separator: "/").last,
-           let n = Int64(total) {
-            size = n
-            ranges = true
-        } else if http.expectedContentLength >= 0 {
-            size = http.expectedContentLength
-        }
+        let (size, ranges) = sizeAndRanges(http)
         let fallback = url.lastPathComponent.isEmpty || url.lastPathComponent == "/" ? (url.host() ?? "download") : url.lastPathComponent
         let name = (http.suggestedFilename ?? fallback).replacingOccurrences(of: "/", with: "-")
         // Weak ETags (W/"…") aren't allowed in If-Range, so only keep strong ones.
@@ -130,6 +121,16 @@ nonisolated enum Probe {
 }
 
 extension Probe {
+    /// The file's total size and whether ranged requests work, from the reply to a `bytes=0-0` request.
+    static func sizeAndRanges(_ http: HTTPURLResponse) -> (size: Int64?, ranges: Bool) {
+        if http.statusCode == 206 {
+            // "bytes 0-0/*" means the total is unknown. The body's length is just the one byte asked for.
+            let size = http.value(forHTTPHeaderField: "Content-Range")?.split(separator: "/").last.flatMap { Int64($0) }
+            return (size, size != nil)
+        }
+        return (http.expectedContentLength >= 0 ? http.expectedContentLength : nil, false)
+    }
+
     /// Where URLSession looks up saved credentials for a sign-in challenge. Requests use the
     /// shared credential storage, so a credential saved here is sent automatically.
     static func protectionSpace(for url: URL, realm: String?, digest: Bool) -> URLProtectionSpace {

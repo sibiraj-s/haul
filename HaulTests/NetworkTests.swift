@@ -93,3 +93,33 @@ struct ProtectionSpaceTests {
         #expect(Probe.protectionSpace(for: URL(string: "https://example.com:8443/a")!, realm: nil, digest: false).port == 8443)
     }
 }
+
+struct ProbeSizeTests {
+    private func response(_ status: Int, _ headers: [String: String]) -> HTTPURLResponse {
+        HTTPURLResponse(url: URL(string: "https://example.com/f")!, statusCode: status, httpVersion: "HTTP/1.1", headerFields: headers)!
+    }
+
+    @Test func partialReplyGivesTotalFromContentRange() {
+        let info = Probe.sizeAndRanges(response(206, ["Content-Range": "bytes 0-0/1048576", "Content-Length": "1"]))
+        #expect(info.size == 1_048_576)
+        #expect(info.ranges)
+    }
+
+    @Test func partialReplyWithUnknownTotalHasNoSize() {
+        let info = Probe.sizeAndRanges(response(206, ["Content-Range": "bytes 0-0/*", "Content-Length": "1"]))
+        #expect(info.size == nil)
+        #expect(!info.ranges)
+    }
+
+    @Test func fullReplyUsesContentLength() {
+        let info = Probe.sizeAndRanges(response(200, ["Content-Length": "5000"]))
+        #expect(info.size == 5000)
+        #expect(!info.ranges)
+    }
+
+    @Test func fullReplyWithoutLengthHasNoSize() {
+        let info = Probe.sizeAndRanges(response(200, [:]))
+        #expect(info.size == nil)
+        #expect(!info.ranges)
+    }
+}
