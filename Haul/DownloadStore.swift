@@ -778,9 +778,16 @@ final class DownloadStore {
     /// Failed downloads whose automatic retry is due go back in the queue (so the
     /// simultaneous-download limit still applies).
     private func retryDue(_ now: Date) {
-        guard settings.autoRetry else { return }
         for i in items.indices where items[i].status == .failed {
-            guard let at = items[i].retryAt, at <= now else { continue }
+            guard let at = items[i].retryAt else { continue }
+            // Retrying was turned off while this one waited: it has failed for good, so say so now.
+            if !settings.autoRetry {
+                items[i].retryAt = nil
+                if settings.notifyFailed { Notifier.failed(items[i]) }
+                dirty = true
+                continue
+            }
+            guard at <= now else { continue }
             items[i].retryAt = nil
             items[i].status = .queued
             items[i].error = nil
