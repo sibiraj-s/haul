@@ -8,7 +8,7 @@ npx changeset          # pick patch / minor / major and write a summary
 ```
 
 Commit the file with the change. On `master`, the Release workflow keeps a
-"Version Packages" pull request open that bumps `package.json` and updates
+"Release haul@<version>" pull request open that bumps `package.json` and updates
 `CHANGELOG.md`. Merging it builds, signs and notarizes the DMG with
 `scripts/build.sh`; only once that passes does `changeset publish` tag `v<version>`
 and create the GitHub Release, with the DMG attached.

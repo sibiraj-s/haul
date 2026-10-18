@@ -29,9 +29,18 @@ jobs:
 
       - run: npm ci
 
-      # With pending changesets: opens or updates the "Version Packages" pull request.
+      # The version the pending changesets bump to, for the pull request's title.
+      - id: next
+        run: |
+          npx changeset status --output="$RUNNER_TEMP/status.json"
+          echo "version=$(node -p "require('$RUNNER_TEMP/status.json').releases[0]?.newVersion ?? ''")" >> "$GITHUB_OUTPUT"
+
+      # With pending changesets: opens or updates the "Release haul@<version>" pull request.
       - id: changesets
         uses: changesets/action@v2
+        with:
+          pr-title: Release haul@${{ steps.next.outputs.version }}
+          commit-message: Release haul@${{ steps.next.outputs.version }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
