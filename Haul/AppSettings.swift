@@ -50,7 +50,7 @@ final class AppSettings {
     var appearance: Appearance { didSet { save(appearance.rawValue, "appearance"); applyAppearance() } }
     var accent: AccentChoice { didSet { save(accent.rawValue, "accent") } }
     var menuBar: Bool { didSet { save(menuBar, "menuBar") } }
-    var dockProgress: Bool { didSet { save(dockProgress, "dockProgress") } }
+    var dockProgress: Bool { didSet { save(dockProgress, "dockProgress"); if dockProgress { Notifier.requestAuthorization() } } }
     /// Notify when a download finishes.
     var notify: Bool { didSet { save(notify, "notify"); if notify { Notifier.requestAuthorization() } } }
     var notifyAdded: Bool { didSet { save(notifyAdded, "notifyAdded"); if notifyAdded { Notifier.requestAuthorization() } } }

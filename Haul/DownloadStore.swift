@@ -901,8 +901,9 @@ nonisolated func sha256(of url: URL) -> String? {
 nonisolated final class Notifier: NSObject, UNUserNotificationCenterDelegate {
     static let shared = Notifier()
 
+    /// Also asks for badges: without them macOS hides the Dock icon's percentage.
     static func requestAuthorization() {
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in }
     }
 
     @MainActor static func added(_ d: Download) {

@@ -104,7 +104,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         AppSettings.shared.applyAppearance()
         UNUserNotificationCenter.current().delegate = Notifier.shared
-        if AppSettings.shared.notify || AppSettings.shared.notifyAdded || AppSettings.shared.notifyFailed { Notifier.requestAuthorization() }
+        let settings = AppSettings.shared
+        if settings.notify || settings.notifyAdded || settings.notifyFailed || settings.dockProgress { Notifier.requestAuthorization() }
         Updater.shared.start()
     }
 
