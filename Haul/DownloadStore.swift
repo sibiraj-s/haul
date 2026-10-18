@@ -571,14 +571,12 @@ final class DownloadStore {
         do {
             let folder = destinationFolder(for: d)
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-            var dest = folder.appending(path: d.name)
-            // Replacing sends the old file to the Trash rather than deleting it, in case it was a
-            // mistake. If that fails, or replacing wasn't chosen, save alongside it.
-            if FileManager.default.fileExists(atPath: dest.path)
-                && (d.replaceExisting != true || (try? FileManager.default.trashItem(at: dest, resultingItemURL: nil)) == nil) {
-                dest = uniqueURL(in: folder, name: d.name)
-            }
+            let target = folder.appending(path: d.name)
+            let exists = FileManager.default.fileExists(atPath: target.path)
+            // Save alongside an existing file first, so if replacing goes wrong both are still there.
+            var dest = exists ? uniqueURL(in: folder, name: d.name) : target
             try FileManager.default.moveItem(at: partURL(d.id), to: dest)
+            if exists && d.replaceExisting == true { dest = Self.swapIn(dest, for: target) }
             if settings.useServerDate, let date = d.lastModified.flatMap(Self.httpDate.date(from:)) {
                 try? FileManager.default.setAttributes([.creationDate: date, .modificationDate: date], ofItemAtPath: dest.path)
             }
@@ -647,6 +645,21 @@ final class DownloadStore {
             n += 1
         }
         return url
+    }
+
+    /// Sends `old` to the Trash (rather than deleting it, in case replacing was a mistake) and moves
+    /// `new` into its place. Returns where the new file ended up; if any step fails, both files are kept.
+    static func swapIn(_ new: URL, for old: URL,
+                       trash: (URL) throws -> URL? = { url in
+                           var trashed: NSURL?
+                           try FileManager.default.trashItem(at: url, resultingItemURL: &trashed)
+                           return trashed as URL?
+                       }) -> URL {
+        let trashed: URL?
+        do { trashed = try trash(old) } catch { return new }
+        if (try? FileManager.default.moveItem(at: new, to: old)) != nil { return old }
+        if let trashed { try? FileManager.default.moveItem(at: trashed, to: old) }
+        return new
     }
 
     private func partURL(_ id: UUID) -> URL { Self.partialsFolder.appending(path: "\(id.uuidString).part") }
