@@ -161,7 +161,7 @@ struct AddDownloadPanel: View {
                 Spacer()
                 PillButton(title: "Cancel") { close() }
                     .keyboardShortcut(.cancelAction)
-                PillButton(title: isBatch ? "Add \(newLinks.count) Download\(newLinks.count == 1 ? "" : "s")" : startNow ? "Download" : "Add to Queue",
+                PillButton(title: isBatch ? "Add \(newLinks.count) Download\(newLinks.count == 1 ? "" : "s")" : startNow ? "Download" : "Add",
                            prominent: true) { confirm() }
                     .keyboardShortcut(.defaultAction)
                     .opacity(canConfirm ? 1 : 0.45)
@@ -366,7 +366,7 @@ struct AddDownloadPanel: View {
         if isBatch {
             // Queued rather than started, so the simultaneous-download limit applies.
             for url in newLinks {
-                store.add(url: url, probe: batchInfo[url], connections: connections, startNow: false, folder: folder)
+                store.add(url: url, probe: batchInfo[url], connections: connections, start: .queued, folder: folder)
             }
             return close()
         }
@@ -374,7 +374,8 @@ struct AddDownloadPanel: View {
         var info: Probe.Info?
         if case .ok(let i) = probe { info = i }
         let replacing = replace && fileName.flatMap { store.existingFile(named: $0, in: folder) } != nil
-        store.add(url: url, probe: info, connections: connections, startNow: startNow, folder: folder, replaceExisting: replacing)
+        store.add(url: url, probe: info, connections: connections, start: startNow ? .now : .paused, folder: folder,
+                  replaceExisting: replacing)
         close()
     }
 }

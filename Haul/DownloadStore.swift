@@ -127,12 +127,16 @@ final class DownloadStore {
 
     // MARK: - Actions
 
+    /// How a new download begins: `.now` goes to the front of the queue (it still waits for a
+    /// free slot), `.queued` to the back, and `.paused` waits until it's started by hand.
+    enum Start { case now, queued, paused }
+
     /// `folder` is a folder picked for this download; nil saves to the default folder.
-    func add(url: URL, probe: Probe.Info?, connections: Int, startNow: Bool, folder: SavedFolder? = nil, replaceExisting: Bool = false) {
-        var d = Download(url: url, name: probe?.name ?? url.lastPathComponent, size: nil, status: .queued, connections: connections)
+    func add(url: URL, probe: Probe.Info?, connections: Int, start: Start, folder: SavedFolder? = nil, replaceExisting: Bool = false) {
+        var d = Download(url: url, name: probe?.name ?? url.lastPathComponent, size: nil,
+                         status: start == .paused ? .paused : .queued, connections: connections)
         if let probe { d.apply(probe) }
-        // "Start immediately" puts it at the front of the queue; it still waits for a free slot.
-        d.queueOrder = startNow ? queueStart : queueEnd
+        d.queueOrder = start == .now ? queueStart : queueEnd
         if replaceExisting { d.replaceExisting = true }
         if let folder {
             d.folderBookmark = folder.bookmark
@@ -145,7 +149,7 @@ final class DownloadStore {
         query = ""
         dirty = true
         if settings.notifyAdded { Notifier.added(d) }
-        if startNow { schedule() }
+        if start == .now { schedule() }
     }
 
     /// The row/inspector primary action: pause, resume, start now or retry.
