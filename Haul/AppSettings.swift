@@ -26,6 +26,18 @@ enum AccentChoice: String, CaseIterable, Identifiable {
 enum ListCleanup: String, CaseIterable, Identifiable {
     case manually, whenFinished, afterDays
     var id: String { rawValue }
+
+    /// "day", "week" and "month" were fixed choices before the number of days could be set.
+    static let legacyDays = ["day": 1, "week": 7, "month": 30]
+
+    /// How long a finished download stays listed; nil means until removed by hand.
+    func age(days: Int) -> TimeInterval? {
+        switch self {
+        case .manually: nil
+        case .whenFinished: 0
+        case .afterDays: TimeInterval(days) * 86_400
+        }
+    }
 }
 
 /// User preferences, persisted to UserDefaults.
@@ -100,11 +112,9 @@ final class AppSettings {
         scheduleTo = d.object(forKey: "scheduleTo") as? Int ?? 7
         pauseOnExpensive = d.object(forKey: "pauseOnExpensive") as? Bool ?? true
         preventSleep = d.object(forKey: "preventSleep") as? Bool ?? true
-        // "day", "week" and "month" were fixed choices before the number of days could be set.
-        let legacyDays = ["day": 1, "week": 7, "month": 30]
         let cleanup = d.string(forKey: "removeFinished") ?? ""
         removeFinished = ListCleanup(rawValue: cleanup) ?? .afterDays
-        removeAfterDays = d.object(forKey: "removeAfterDays") as? Int ?? legacyDays[cleanup] ?? 90
+        removeAfterDays = d.object(forKey: "removeAfterDays") as? Int ?? ListCleanup.legacyDays[cleanup] ?? 90
         removeDeleted = d.object(forKey: "removeDeleted") as? Bool ?? true
         confirmRemove = d.object(forKey: "confirmRemove") as? Bool ?? true
         autoRetry = d.object(forKey: "autoRetry") as? Bool ?? true
@@ -116,14 +126,8 @@ final class AppSettings {
         recentFolders = (d.array(forKey: "recentFolders") as? [Data] ?? []).compactMap { SavedFolder(bookmark: $0) }
     }
 
-    /// How long a finished download stays listed; nil means until removed by hand.
-    var finishedKeepTime: TimeInterval? {
-        switch removeFinished {
-        case .manually: nil
-        case .whenFinished: 0
-        case .afterDays: TimeInterval(removeAfterDays) * 86_400
-        }
-    }
+    /// How long a finished download stays listed under the current settings.
+    var finishedKeepTime: TimeInterval? { removeFinished.age(days: removeAfterDays) }
 
     /// Whether `hour` falls in the schedule. Equal start and end means all day.
     func inSchedule(hour: Int) -> Bool { Self.inSchedule(hour: hour, from: scheduleFrom, to: scheduleTo) }

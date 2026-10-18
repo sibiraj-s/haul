@@ -26,10 +26,14 @@ struct ScheduleTests {
 
 struct ListCleanupTests {
     @Test func ages() {
-        #expect(ListCleanup.manually.age == nil)
-        #expect(ListCleanup.whenFinished.age == 0)
-        #expect(ListCleanup.day.age == TimeInterval(86_400))
-        #expect(ListCleanup.week.age == TimeInterval(7 * 86_400))
-        #expect(ListCleanup.month.age == TimeInterval(30 * 86_400))
+        #expect(ListCleanup.manually.age(days: 90) == nil)
+        #expect(ListCleanup.whenFinished.age(days: 90) == 0)
+        #expect(ListCleanup.afterDays.age(days: 1) == TimeInterval(86_400))
+        #expect(ListCleanup.afterDays.age(days: 90) == TimeInterval(90 * 86_400))
+    }
+
+    @Test func oldFixedChoicesBecomeDays() {
+        #expect(ListCleanup(rawValue: "week") == nil)
+        #expect(ListCleanup.legacyDays == ["day": 1, "week": 7, "month": 30])
     }
 }
