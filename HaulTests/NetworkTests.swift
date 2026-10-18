@@ -22,6 +22,33 @@ struct ResponseErrorTests {
         #expect(digest)
     }
 
+    @Test func digestRealmMentioningBasicStaysDigest() {
+        let error = DownloadError.response(response(401, ["WWW-Authenticate": #"Digest realm="basic-users", qop="auth", nonce="abc""#]))
+        guard case .signInRequired(let realm, let digest) = error else { Issue.record("expected signInRequired"); return }
+        #expect(realm == "basic-users")
+        #expect(digest)
+    }
+
+    @Test func realmTextIsNotTakenForAScheme() {
+        let error = DownloadError.response(response(401, ["WWW-Authenticate": #"Bearer realm="api, digest stuff""#]))
+        guard case .linkExpired(401) = error else { Issue.record("expected linkExpired"); return }
+    }
+
+    @Test func basicPreferredWithItsOwnRealm() {
+        let header = #"Digest realm="D", nonce="x", Basic realm="B""#
+        guard case .signInRequired(let realm, let digest) = DownloadError.response(response(401, ["WWW-Authenticate": header])) else {
+            Issue.record("expected signInRequired"); return
+        }
+        #expect(realm == "B")
+        #expect(!digest)
+    }
+
+    @Test func challengesReadQuotedAndPlainRealms() {
+        let offered = DownloadError.challenges(#"Basic realm=Plain, Digest realm="Say \"hi\"", qop="auth""#)
+        #expect(offered.map(\.scheme) == ["basic", "digest"])
+        #expect(offered.map(\.realm) == ["Plain", #"Say "hi""#])
+    }
+
     @Test func unauthorizedWithoutChallengeIsAnExpiredLink() {
         guard case .linkExpired(401) = DownloadError.response(response(401)) else { Issue.record("expected linkExpired"); return }
     }

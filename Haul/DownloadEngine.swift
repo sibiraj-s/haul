@@ -36,13 +36,37 @@ nonisolated enum DownloadError: LocalizedError {
     /// Maps a failing response to the most useful error, recognising sign-in challenges.
     static func response(_ http: HTTPURLResponse) -> DownloadError {
         if http.statusCode == 401, let challenge = http.value(forHTTPHeaderField: "WWW-Authenticate") {
-            let lower = challenge.lowercased()
-            if lower.hasPrefix("basic") || lower.hasPrefix("digest") || lower.contains(", basic") || lower.contains(", digest") {
-                let realm = challenge.firstMatch(of: /realm="([^"]*)"/).map { String($0.1) }
-                return .signInRequired(realm: realm, digest: !lower.contains("basic"))
+            let offered = challenges(challenge)
+            // Basic is preferred when the server offers both.
+            if let c = offered.first(where: { $0.scheme == "basic" }) ?? offered.first(where: { $0.scheme == "digest" }) {
+                return .signInRequired(realm: c.realm, digest: c.scheme == "digest")
             }
         }
         return status(http.statusCode)
+    }
+
+    /// The schemes in a WWW-Authenticate header, lowercased, each with its realm. Quoted values
+    /// are read as a whole, so text inside a realm can't be mistaken for a scheme.
+    static func challenges(_ header: String) -> [(scheme: String, realm: String?)] {
+        let tokens = header.matches(of: /"(?:[^"\\]|\\.)*"|[,=]|[^\s,="]+/).map { String($0.output) }
+        var result: [(scheme: String, realm: String?)] = []
+        var afterComma = true
+        for (i, token) in tokens.enumerated() {
+            if token == "," { afterComma = true; continue }
+            defer { afterComma = false }
+            let next = i + 1 < tokens.count ? tokens[i + 1] : nil
+            // A scheme starts the header or follows a comma; a parameter name is followed by "=".
+            if afterComma, next != "=", !token.hasPrefix("\"") {
+                result.append((token.lowercased(), nil))
+            } else if token.lowercased() == "realm", next == "=", i + 2 < tokens.count, !result.isEmpty, result[result.count - 1].realm == nil {
+                var value = tokens[i + 2]
+                if value.hasPrefix("\""), value.count >= 2 {
+                    value = String(value.dropFirst().dropLast()).replacing(/\\(.)/) { String($0.1) }
+                }
+                result[result.count - 1].realm = value
+            }
+        }
+        return result
     }
 
     /// Maps a failing HTTP status to the most useful error.
