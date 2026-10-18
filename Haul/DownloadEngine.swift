@@ -146,7 +146,7 @@ nonisolated enum Probe {
 
 extension Probe {
     /// The file's total size and whether ranged requests work, from the reply to a `bytes=0-0` request.
-    static func sizeAndRanges(_ http: HTTPURLResponse) -> (size: Int64?, ranges: Bool) {
+    nonisolated static func sizeAndRanges(_ http: HTTPURLResponse) -> (size: Int64?, ranges: Bool) {
         if http.statusCode == 206 {
             // "bytes 0-0/*" means the total is unknown. The body's length is just the one byte asked for.
             let size = http.value(forHTTPHeaderField: "Content-Range")?.split(separator: "/").last.flatMap { Int64($0) }
