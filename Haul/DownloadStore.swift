@@ -184,10 +184,15 @@ final class DownloadStore {
         schedule()
     }
 
-    func remove(_ id: UUID) {
+    /// `trashFile` also moves a finished download's file to the Trash.
+    func remove(_ id: UUID, trashFile: Bool = false) {
         guard let i = index(id) else { return }
         stopEngine(at: i)
         if items[i].status != .completed { try? FileManager.default.removeItem(at: partURL(id)) }
+        if trashFile, items[i].status == .completed, let file = items[i].fileURL {
+            _ = destinationFolder(for: items[i])  // makes sure a picked folder's sandbox access is active
+            try? FileManager.default.trashItem(at: file, resultingItemURL: nil)
+        }
         items.remove(at: i)
         if selection == id { selection = items.indices.contains(i) ? items[i].id : items.last?.id }
         dirty = true
@@ -346,10 +351,15 @@ final class DownloadStore {
     /// Asks first (unless turned off in Settings), then removes.
     func requestRemove(_ id: UUID) {
         guard let d = items.first(where: { $0.id == id }) else { return }
-        let detail = d.status == .completed
-            ? "The file stays in \(destinationLabel(for: d))."
-            : "What's been downloaded so far will be deleted."
-        if confirm("Remove “\(d.name)”?", detail, button: "Remove") { remove(id) }
+        let hasFile = d.status == .completed && d.fileURL.map { FileManager.default.fileExists(atPath: $0.path) } == true
+        let detail = hasFile
+            ? "Removes it from the list. The file is in \(destinationLabel(for: d))."
+            : d.status == .completed
+                ? "Removes it from the list."
+                : "What's been downloaded so far will be deleted."
+        let (confirmed, trash) = confirm("Remove “\(d.name)”?", detail, button: "Remove",
+                                         checkbox: hasFile ? "Also move the file to the Trash" : nil)
+        if confirmed { remove(id, trashFile: trash) }
     }
 
     func requestClearCompleted() {
@@ -363,7 +373,12 @@ final class DownloadStore {
     /// A standalone alert rather than a sheet: sheets on Haul's title-bar-less windows make
     /// AppKit restore the title bar.
     private func confirm(_ title: String, _ detail: String, button: String) -> Bool {
-        guard settings.confirmRemove else { return true }
+        confirm(title, detail, button: button, checkbox: nil).confirmed
+    }
+
+    /// `checkbox` adds an option that starts off; `checked` is whether it was turned on.
+    private func confirm(_ title: String, _ detail: String, button: String, checkbox: String?) -> (confirmed: Bool, checked: Bool) {
+        guard settings.confirmRemove else { return (true, false) }
         let alert = NSAlert()
         alert.messageText = title
         alert.informativeText = detail
@@ -371,10 +386,23 @@ final class DownloadStore {
         alert.addButton(withTitle: "Cancel")
         alert.showsSuppressionButton = true
         alert.suppressionButton?.title = "Don't ask again"
+        let option = checkbox.map { NSButton(checkboxWithTitle: $0, target: nil, action: nil) }
+        if let option {
+            option.sizeToFit()
+            let container = OverhangView(frame: option.frame)
+            container.addSubview(option)
+            alert.accessoryView = container
+            // NSAlert insets the accessory view; line the checkbox up with "Don't ask again".
+            alert.layout()
+            if let suppression = alert.suppressionButton {
+                let dx = suppression.convert(suppression.bounds, to: nil).minX - option.convert(option.bounds, to: nil).minX
+                option.frame.origin.x += dx
+            }
+        }
         NSApp.activate()
         let confirmed = alert.runModal() == .alertFirstButtonReturn
         if confirmed && alert.suppressionButton?.state == .on { settings.confirmRemove = false }
-        return confirmed
+        return (confirmed, confirmed && option?.state == .on)
     }
 
     func clearCompleted() {
@@ -913,5 +941,16 @@ struct DockTileView: View {
                 .padding(.bottom, 14)
         }
         .frame(width: 128, height: 128)
+    }
+}
+
+/// Lets a subview that sticks out past this view's bounds still take clicks.
+private final class OverhangView: NSView {
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        let local = convert(point, from: superview)
+        for sub in subviews.reversed() {
+            if let hit = sub.hitTest(local) { return hit }
+        }
+        return super.hitTest(point)
     }
 }
