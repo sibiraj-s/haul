@@ -130,7 +130,8 @@ final class DownloadStore {
     func add(url: URL, probe: Probe.Info?, connections: Int, startNow: Bool, folder: SavedFolder? = nil, replaceExisting: Bool = false) {
         var d = Download(url: url, name: probe?.name ?? url.lastPathComponent, size: nil, status: .queued, connections: connections)
         if let probe { d.apply(probe) }
-        d.queueOrder = queueEnd
+        // "Start immediately" puts it at the front of the queue; it still waits for a free slot.
+        d.queueOrder = startNow ? queueStart : queueEnd
         if replaceExisting { d.replaceExisting = true }
         if let folder {
             d.folderBookmark = folder.bookmark
@@ -143,7 +144,7 @@ final class DownloadStore {
         query = ""
         dirty = true
         if settings.notifyAdded { Notifier.added(d) }
-        if startNow { begin(d.id) }
+        if startNow { schedule() }
     }
 
     /// The row/inspector primary action: pause, resume, start now or retry.
