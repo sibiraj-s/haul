@@ -13,12 +13,12 @@ permissions:
   pull-requests: write
 
 jobs:
-  changesets:
-    name: Version or tag
+  version:
+    name: Version
     runs-on: ubuntu-latest
     outputs:
-      published: ${{ steps.changesets.outputs.published }}
-      version: ${{ fromJSON(steps.changesets.outputs.published-packages)[0].version }}
+      release: ${{ steps.unreleased.outputs.release }}
+      version: ${{ steps.unreleased.outputs.version }}
     steps:
       - uses: actions/checkout@v7
 
@@ -30,34 +30,72 @@ jobs:
       - run: npm ci
 
       # With pending changesets: opens or updates the "Version Packages" pull request.
-      # Once that's merged: tags v<version> and creates the GitHub Release from CHANGELOG.md.
       - id: changesets
+        uses: changesets/action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Once that's merged, package.json has a version with no tag yet.
+      - id: unreleased
+        if: steps.changesets.outputs.has-changesets == 'false'
+        run: |
+          version="$(node -p 'require("./package.json").version')"
+          release=true
+          git ls-remote --exit-code --tags origin "refs/tags/v$version" >/dev/null && release=false
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "release=$release" >> "$GITHUB_OUTPUT"
+
+  release:
+    name: Build, sign and release
+    needs: version
+    if: needs.version.outputs.release == 'true'
+    runs-on: xcode-27
+    timeout-minutes: 60
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+      NOTARY_ISSUER_ID: ${{ secrets.NOTARY_ISSUER_ID }}
+      SPARKLE_PUBLIC_KEY: ${{ vars.SPARKLE_PUBLIC_KEY }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      # Fails the job if any signing secret is missing, so a release never ships unsigned.
+      - name: Install signing certificate and notary key
+        run: scripts/release/install-signing.sh
+        env:
+          CERTIFICATE_P12: ${{ secrets.DEVELOPER_ID_CERTIFICATE_P12 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.DEVELOPER_ID_CERTIFICATE_PASSWORD }}
+          NOTARY_KEY: ${{ secrets.NOTARY_KEY }}
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+
+      - name: Build, sign and notarize
+        run: scripts/build.sh "$VERSION"
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+
+      - name: Remove signing certificate and notary key
+        if: always()
+        run: scripts/release/remove-signing.sh
+
+      - name: Tag and release
         uses: changesets/action@v2
         with:
           publish-script: npx changeset publish
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  build:
-    name: Build and attach DMG
-    needs: changesets
-    if: needs.changesets.outputs.published == 'true'
-    runs-on: xcode-27
-    timeout-minutes: 30
-    env:
-      VERSION: ${{ needs.changesets.outputs.version }}
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: v${{ needs.changesets.outputs.version }}
-
-      - name: Show Xcode version
-        run: xcodebuild -version
-
-      - name: Build
-        run: ./build.sh "$VERSION"
-
-      - name: Upload DMG to the release
-        run: gh release upload "v$VERSION" "build/Haul-$VERSION.dmg"
+      - name: Upload DMG and publish the appcast
+        run: scripts/release/publish.sh "$VERSION"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

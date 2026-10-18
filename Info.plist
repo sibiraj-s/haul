@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Sparkle: release.yml replaces this appcast only after a Developer ID release builds,
+	     so a failed or ad hoc release never leaves installed copies without a feed. -->
+	<key>SUFeedURL</key>
+	<string>https://github.com/sibiraj-s/haul/releases/download/appcast/appcast.xml</string>
+	<!-- Empty in builds without a key; Updater then links to the releases page instead. -->
+	<key>SUPublicEDKey</key>
+	<string>$(SPARKLE_PUBLIC_KEY)</string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<!-- Installs updates through Sparkle's XPC service, since the sandbox can't replace the app. -->
+	<key>SUEnableInstallerLauncherService</key>
+	<true/>
+</dict>
+</plist>

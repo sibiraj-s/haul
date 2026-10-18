@@ -61,7 +61,7 @@ private struct HaulCommands: Commands {
                     .version: "",
                 ])
             }
-            Button("Check for Updates…") { Updater.shared.checkNow() }
+            CheckForUpdatesButton()
         }
         CommandGroup(replacing: .appSettings) {
             Button("Settings…") { SettingsWindow.shared.show() }
@@ -91,12 +91,21 @@ private struct HaulCommands: Commands {
     }
 }
 
+/// A View, not inline in `HaulCommands`: Commands don't reliably redraw when `canCheck`
+/// changes, which could leave the item disabled after Sparkle starts.
+private struct CheckForUpdatesButton: View {
+    var body: some View {
+        Button("Check for Updates…") { Updater.shared.checkNow() }
+            .disabled(Updater.shared.isEnabled && !Updater.shared.canCheck)
+    }
+}
+
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         AppSettings.shared.applyAppearance()
         UNUserNotificationCenter.current().delegate = Notifier.shared
         if AppSettings.shared.notify || AppSettings.shared.notifyAdded || AppSettings.shared.notifyFailed { Notifier.requestAuthorization() }
-        Updater.shared.startAutomaticChecks()
+        Updater.shared.start()
     }
 
     /// Keep running in the menu bar after the window closes.

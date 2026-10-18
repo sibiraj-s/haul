@@ -107,7 +107,7 @@ private struct SettingRow<Control: View>: View {
 
 private struct GeneralSettings: View {
     @Bindable private var settings = AppSettings.shared
-    private let updater = Updater.shared
+    @Bindable private var updater = Updater.shared
 
     var body: some View {
         DesignGroup {
@@ -175,12 +175,14 @@ private struct GeneralSettings: View {
             SettingRow(title: "Ask before removing downloads") { DesignSwitch(isOn: $settings.confirmRemove) }
         }
         DesignGroup {
-            SettingRow(title: "Check for updates automatically", caption: "Once a day, from Haul's GitHub releases.") {
-                DesignSwitch(isOn: $settings.checkForUpdates)
+            if updater.isEnabled {
+                SettingRow(title: "Check for updates automatically", caption: "Once a day, from Haul's GitHub releases.") {
+                    DesignSwitch(isOn: $updater.automaticallyChecks)
+                }
             }
             SettingRow(title: "Version \(updater.currentVersion)") {
-                PillButton(title: updater.isChecking ? "Checking…" : "Check Now", height: 24, fontSize: 12) { updater.checkNow() }
-                    .disabled(updater.isChecking)
+                PillButton(title: updater.isEnabled ? "Check Now" : "Releases", height: 24, fontSize: 12) { updater.checkNow() }
+                    .disabled(updater.isEnabled && !updater.canCheck)
             }
         }
     }

@@ -85,8 +85,6 @@ final class AppSettings {
     var useServerDate: Bool { didSet { save(useServerDate, "useServerDate") } }
     /// Record the link a file came from (Finder's "Where from").
     var recordSource: Bool { didSet { save(recordSource, "recordSource") } }
-    /// Look for a newer release on GitHub once a day.
-    var checkForUpdates: Bool { didSet { save(checkForUpdates, "checkForUpdates") } }
     private(set) var launchAtLogin = SMAppService.mainApp.status == .enabled
     /// Default save folder chosen by the user; nil means ~/Downloads.
     private(set) var defaultFolder: SavedFolder?
@@ -124,7 +122,6 @@ final class AppSettings {
         skipWebPages = d.object(forKey: "skipWebPages") as? Bool ?? true
         useServerDate = d.object(forKey: "useServerDate") as? Bool ?? false
         recordSource = d.object(forKey: "recordSource") as? Bool ?? true
-        checkForUpdates = d.object(forKey: "checkForUpdates") as? Bool ?? true
         defaultFolder = d.data(forKey: "defaultFolder").flatMap { SavedFolder(bookmark: $0) }
         recentFolders = (d.array(forKey: "recentFolders") as? [Data] ?? []).compactMap { SavedFolder(bookmark: $0) }
     }
