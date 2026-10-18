@@ -22,31 +22,10 @@ enum AccentChoice: String, CaseIterable, Identifiable {
     }
 }
 
-/// When finished downloads leave the list on their own.
+/// When finished downloads leave the list on their own. Only the list entry goes; the file stays.
 enum ListCleanup: String, CaseIterable, Identifiable {
-    case manually, whenFinished, day, week, month
+    case manually, whenFinished, afterDays
     var id: String { rawValue }
-
-    var label: String {
-        switch self {
-        case .manually: "Manually"
-        case .whenFinished: "When Finished"
-        case .day: "After One Day"
-        case .week: "After One Week"
-        case .month: "After One Month"
-        }
-    }
-
-    /// How long a finished download stays listed; nil means until removed by hand.
-    var age: TimeInterval? {
-        switch self {
-        case .manually: nil
-        case .whenFinished: 0
-        case .day: 86_400
-        case .week: 7 * 86_400
-        case .month: 30 * 86_400
-        }
-    }
 }
 
 /// User preferences, persisted to UserDefaults.
@@ -80,6 +59,8 @@ final class AppSettings {
     /// Keep the Mac from idle-sleeping while something is downloading.
     var preventSleep: Bool { didSet { save(preventSleep, "preventSleep") } }
     var removeFinished: ListCleanup { didSet { save(removeFinished.rawValue, "removeFinished") } }
+    /// Days a finished download stays listed when `removeFinished` is `.afterDays`.
+    var removeAfterDays: Int { didSet { save(removeAfterDays, "removeAfterDays") } }
     /// Drop finished downloads whose file is no longer where it was saved.
     var removeDeleted: Bool { didSet { save(removeDeleted, "removeDeleted") } }
     /// Ask before removing downloads from the list.
@@ -119,7 +100,11 @@ final class AppSettings {
         scheduleTo = d.object(forKey: "scheduleTo") as? Int ?? 7
         pauseOnExpensive = d.object(forKey: "pauseOnExpensive") as? Bool ?? true
         preventSleep = d.object(forKey: "preventSleep") as? Bool ?? true
-        removeFinished = ListCleanup(rawValue: d.string(forKey: "removeFinished") ?? "") ?? .manually
+        // "day", "week" and "month" were fixed choices before the number of days could be set.
+        let legacyDays = ["day": 1, "week": 7, "month": 30]
+        let cleanup = d.string(forKey: "removeFinished") ?? ""
+        removeFinished = ListCleanup(rawValue: cleanup) ?? .afterDays
+        removeAfterDays = d.object(forKey: "removeAfterDays") as? Int ?? legacyDays[cleanup] ?? 90
         removeDeleted = d.object(forKey: "removeDeleted") as? Bool ?? true
         confirmRemove = d.object(forKey: "confirmRemove") as? Bool ?? true
         autoRetry = d.object(forKey: "autoRetry") as? Bool ?? true
@@ -129,6 +114,15 @@ final class AppSettings {
         checkForUpdates = d.object(forKey: "checkForUpdates") as? Bool ?? true
         defaultFolder = d.data(forKey: "defaultFolder").flatMap { SavedFolder(bookmark: $0) }
         recentFolders = (d.array(forKey: "recentFolders") as? [Data] ?? []).compactMap { SavedFolder(bookmark: $0) }
+    }
+
+    /// How long a finished download stays listed; nil means until removed by hand.
+    var finishedKeepTime: TimeInterval? {
+        switch removeFinished {
+        case .manually: nil
+        case .whenFinished: 0
+        case .afterDays: TimeInterval(removeAfterDays) * 86_400
+        }
     }
 
     /// Whether `hour` falls in the schedule. Equal start and end means all day.

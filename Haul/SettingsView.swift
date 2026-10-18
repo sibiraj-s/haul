@@ -148,8 +148,27 @@ private struct GeneralSettings: View {
         }
         DesignGroup {
             SettingRow(title: "Ask before removing downloads") { DesignSwitch(isOn: $settings.confirmRemove) }
-            SettingRow(title: "Remove finished downloads from list") {
-                PopUpMenu(options: ListCleanup.allCases.map { ($0, $0.label) }, selection: $settings.removeFinished)
+            SettingRow(title: "Remove finished downloads from list", caption: "Only clears the list. Files stay where they were saved.") {
+                HStack(spacing: 8) {
+                    if settings.removeFinished == .afterDays {
+                        HStack(spacing: 6) {
+                            TextField("", value: $settings.removeAfterDays, format: .number)
+                                .textFieldStyle(.plain)
+                                .multilineTextAlignment(.trailing)
+                                .monospacedDigit()
+                                .frame(width: 34)
+                                .onChange(of: settings.removeAfterDays) { _, days in
+                                    if !(1...3650).contains(days) { settings.removeAfterDays = min(3650, max(1, days)) }
+                                }
+                            ChevronStepper(
+                                up: { settings.removeAfterDays = min(3650, settings.removeAfterDays + 1) },
+                                down: { settings.removeAfterDays = max(1, settings.removeAfterDays - 1) })
+                        }
+                    }
+                    PopUpMenu(options: [(ListCleanup.manually, "Manually"), (.whenFinished, "When Finished"),
+                                        (.afterDays, settings.removeAfterDays == 1 ? "Day" : "Days")],
+                              selection: $settings.removeFinished)
+                }
             }
             SettingRow(title: "Remove downloads whose file was deleted", caption: "Also when the file is moved or renamed in Finder.") {
                 DesignSwitch(isOn: $settings.removeDeleted)
@@ -241,13 +260,9 @@ private struct DownloadSettings: View {
             SettingRow(title: "Simultaneous downloads") {
                 HStack(spacing: 10) {
                     Text("\(settings.maxConcurrent)").monospacedDigit().frame(minWidth: 12, alignment: .trailing)
-                    VStack(spacing: 0) {
-                        stepper("chevron.up") { settings.maxConcurrent = min(8, settings.maxConcurrent + 1) }
-                        Rectangle().fill(Theme.ctlB).frame(width: 16, height: 0.5)
-                        stepper("chevron.down") { settings.maxConcurrent = max(1, settings.maxConcurrent - 1) }
-                    }
-                    .controlChrome(RoundedRectangle(cornerRadius: 5))
-                    .clipShape(RoundedRectangle(cornerRadius: 5))
+                    ChevronStepper(
+                        up: { settings.maxConcurrent = min(8, settings.maxConcurrent + 1) },
+                        down: { settings.maxConcurrent = max(1, settings.maxConcurrent - 1) })
                 }
             }
             SettingRow(title: "Connections per download") {
@@ -258,8 +273,24 @@ private struct DownloadSettings: View {
             }
         }
     }
+}
 
-    private func stepper(_ symbol: String, action: @escaping () -> Void) -> some View {
+/// Up/down arrows for nudging a number.
+private struct ChevronStepper: View {
+    let up: () -> Void
+    let down: () -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            button("chevron.up", action: up)
+            Rectangle().fill(Theme.ctlB).frame(width: 16, height: 0.5)
+            button("chevron.down", action: down)
+        }
+        .controlChrome(RoundedRectangle(cornerRadius: 5))
+        .clipShape(RoundedRectangle(cornerRadius: 5))
+    }
+
+    private func button(_ symbol: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: symbol).font(.system(size: 7, weight: .heavy))
                 .frame(width: 16, height: 11)

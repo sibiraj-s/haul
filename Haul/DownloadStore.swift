@@ -771,7 +771,7 @@ final class DownloadStore {
         // folder we've lost access to shouldn't empty the list.
         var readable: [URL: Bool] = [:]
         for d in items where d.status == .completed {
-            if let age = settings.removeFinished.age, now.timeIntervalSince(d.finished ?? d.added) >= age {
+            if let age = settings.finishedKeepTime, now.timeIntervalSince(d.finished ?? d.added) >= age {
                 gone.append(d.id)
             } else if settings.removeDeleted, let file = d.fileURL {
                 let parent = file.deletingLastPathComponent()
