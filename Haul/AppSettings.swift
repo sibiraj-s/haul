@@ -77,6 +77,8 @@ final class AppSettings {
     var removeDeleted: Bool { didSet { save(removeDeleted, "removeDeleted") } }
     /// Ask before removing downloads from the list.
     var confirmRemove: Bool { didSet { save(confirmRemove, "confirmRemove") } }
+    /// Last choice for "Also move the file to the Trash" in the remove dialog.
+    var trashOnRemove: Bool { didSet { save(trashOnRemove, "trashOnRemove") } }
     var autoRetry: Bool { didSet { save(autoRetry, "autoRetry") } }
     var skipWebPages: Bool { didSet { save(skipWebPages, "skipWebPages") } }
     /// Date saved files with the server's Last-Modified instead of when they finished.
@@ -117,6 +119,7 @@ final class AppSettings {
         removeAfterDays = d.object(forKey: "removeAfterDays") as? Int ?? ListCleanup.legacyDays[cleanup] ?? 90
         removeDeleted = d.object(forKey: "removeDeleted") as? Bool ?? true
         confirmRemove = d.object(forKey: "confirmRemove") as? Bool ?? true
+        trashOnRemove = d.object(forKey: "trashOnRemove") as? Bool ?? false
         autoRetry = d.object(forKey: "autoRetry") as? Bool ?? true
         skipWebPages = d.object(forKey: "skipWebPages") as? Bool ?? true
         useServerDate = d.object(forKey: "useServerDate") as? Bool ?? false

@@ -369,9 +369,14 @@ final class DownloadStore {
             : d.status == .completed
                 ? "Removes it from the list."
                 : "What's been downloaded so far will be deleted."
+        // Without the dialog (confirmation off) the file is always kept.
+        let asked = settings.confirmRemove
         let (confirmed, trash) = confirm("Remove “\(d.name)”?", detail, button: "Remove",
-                                         checkbox: hasFile ? "Also move the file to the Trash" : nil)
-        if confirmed { remove(id, trashFile: trash) }
+                                         checkbox: hasFile ? "Also move the file to the Trash" : nil,
+                                         checked: settings.trashOnRemove)
+        guard confirmed else { return }
+        if hasFile && asked { settings.trashOnRemove = trash }
+        remove(id, trashFile: trash)
     }
 
     func requestClearCompleted() {
@@ -388,8 +393,8 @@ final class DownloadStore {
         confirm(title, detail, button: button, checkbox: nil).confirmed
     }
 
-    /// `checkbox` adds an option that starts off; `checked` is whether it was turned on.
-    private func confirm(_ title: String, _ detail: String, button: String, checkbox: String?) -> (confirmed: Bool, checked: Bool) {
+    /// `checkbox` adds an option that starts in the `checked` state; the result's `checked` is whether it ended up on.
+    private func confirm(_ title: String, _ detail: String, button: String, checkbox: String?, checked: Bool = false) -> (confirmed: Bool, checked: Bool) {
         guard settings.confirmRemove else { return (true, false) }
         let alert = NSAlert()
         alert.messageText = title
@@ -400,6 +405,7 @@ final class DownloadStore {
         alert.suppressionButton?.title = "Don't ask again"
         let option = checkbox.map { NSButton(checkboxWithTitle: $0, target: nil, action: nil) }
         if let option {
+            option.state = checked ? .on : .off
             option.sizeToFit()
             let container = OverhangView(frame: option.frame)
             container.addSubview(option)
