@@ -352,6 +352,7 @@ final class DownloadStore {
     /// Asks first (unless turned off in Settings), then removes.
     func requestRemove(_ id: UUID) {
         guard let d = items.first(where: { $0.id == id }) else { return }
+        if d.status == .completed { _ = destinationFolder(for: d) }  // makes sure a picked folder's sandbox access is active
         let hasFile = d.status == .completed && d.fileURL.map { FileManager.default.fileExists(atPath: $0.path) } == true
         let detail = hasFile
             ? "Removes it from the list. The file is in \(destinationLabel(for: d))."
