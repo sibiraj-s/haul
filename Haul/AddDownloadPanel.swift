@@ -37,7 +37,7 @@ struct AddDownloadPanel: View {
 
     /// Splits on spaces and new lines, and on commas or semicolons between links
     /// ("a.com/x, b.com/y" or "a.com/x;b.com/y"). A comma inside a link is kept.
-    static func words(in text: String) -> [String] {
+    nonisolated static func words(in text: String) -> [String] {
         text.split(whereSeparator: \.isWhitespace).flatMap { word in
             word.split(separator: /[,;](?=https?:\/\/)/).map { $0.trimmingCharacters(in: CharacterSet(charactersIn: ",;")) }
         }
@@ -47,14 +47,14 @@ struct AddDownloadPanel: View {
     /// The valid links among `words`, without repeats.
     private var links: [URL] { Self.links(in: address) }
 
-    static func link(_ text: String) -> URL? {
+    nonisolated static func link(_ text: String) -> URL? {
         guard let url = URL(string: text), let scheme = url.scheme?.lowercased(),
               scheme == "http" || scheme == "https", url.host() != nil else { return nil }
         return url
     }
 
     /// The valid links in `text`, without repeats.
-    static func links(in text: String) -> [URL] {
+    nonisolated static func links(in text: String) -> [URL] {
         var seen = Set<URL>()
         return words(in: text).compactMap(link).filter { seen.insert($0).inserted }
     }

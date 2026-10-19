@@ -5,10 +5,10 @@ import AppKit
 /// rather than downloading straight away, so a web page that opens a haul:// link can't
 /// start a download by itself.
 enum IncomingLinks {
-    static let scheme = "haul"
+    nonisolated static let scheme = "haul"
 
     /// The download links in a `haul://add` URL; empty when it isn't one.
-    static func links(in url: URL) -> [URL] {
+    nonisolated static func links(in url: URL) -> [URL] {
         guard url.scheme?.lowercased() == scheme, url.host()?.lowercased() == "add",
               let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems else { return [] }
         return items.filter { $0.name == "url" }.compactMap { $0.value.flatMap(AddDownloadPanel.link) }

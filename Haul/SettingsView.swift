@@ -1,3 +1,4 @@
+import SafariServices
 import SwiftUI
 
 struct SettingsView: View {
@@ -146,6 +147,7 @@ private struct GeneralSettings: View {
                 DesignSwitch(isOn: Binding(get: { settings.launchAtLogin }, set: { settings.setLaunchAtLogin($0) }))
             }
         }
+        DesignGroup { SafariExtensionRow() }
         DesignGroup {
             SettingRow(title: "Remove finished downloads from list", caption: "Only clears the list. Files stay where they were saved.") {
                 HStack(spacing: 8) {
@@ -185,6 +187,32 @@ private struct GeneralSettings: View {
                     .disabled(updater.isEnabled && !updater.canCheck)
             }
         }
+    }
+}
+
+/// Whether the Safari extension that ships inside Haul is turned on, with a button to Safari's
+/// settings, where it's turned on.
+private struct SafariExtensionRow: View {
+    private static let identifier = (Bundle.main.bundleIdentifier ?? "") + ".safari-extension"
+    @State private var enabled: Bool?
+
+    var body: some View {
+        SettingRow(title: "Safari extension",
+                   caption: enabled == true ? "“Download with Haul” is in Safari's menu for links."
+                       : "Adds “Download with Haul” to Safari's menu for links.") {
+            PillButton(title: enabled == true ? "Safari Settings…" : "Turn On in Safari…", height: 24, fontSize: 12) {
+                SFSafariApplication.showPreferencesForExtension(withIdentifier: Self.identifier)
+            }
+        }
+        // Checked again whenever Haul comes back to the front, e.g. from Safari's settings.
+        .task(id: enabled == nil) { await refresh() }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            Task { await refresh() }
+        }
+    }
+
+    private func refresh() async {
+        enabled = try? await SFSafariExtensionManager.stateOfSafariExtension(withIdentifier: Self.identifier).isEnabled
     }
 }
 
