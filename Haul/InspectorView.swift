@@ -150,6 +150,9 @@ struct InspectorView: View {
             if d.extract == true && Extractor.canExtract(d.name) {
                 DetailRow("Extract") { extraction(d) }
             }
+            if let whenDone = d.whenDone, whenDone != .nothing, d.status != .completed {
+                DetailRow("When done") { Text(whenDone.label) }
+            }
         }
         .font(.system(size: 12))
         .padding(.horizontal, 12)

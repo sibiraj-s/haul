@@ -168,6 +168,7 @@ struct Download: Codable, Identifiable {
     /// What extracting produced, or why it failed.
     var extractedURL: URL?
     var extractError: String?
+    var whenDone: WhenDone?
 
     /// Live engine state; not persisted.
     var speed: Double = 0
@@ -182,7 +183,7 @@ struct Download: Codable, Identifiable {
     var extracting = false
 
     enum CodingKeys: String, CodingKey {
-        case id, url, name, size, status, connections, resumable, segments, added, finished, error, fileURL, sha256, renamed, etag, lastModified, issue, folderBookmark, folderName, queueOrder, replaceExisting, authRealm, authDigest, extract, extractedURL, extractError
+        case id, url, name, size, status, connections, resumable, segments, added, finished, error, fileURL, sha256, renamed, etag, lastModified, issue, folderBookmark, folderName, queueOrder, replaceExisting, authRealm, authDigest, extract, extractedURL, extractError, whenDone
     }
 
     var kind: FileKind { .of(name) }
@@ -199,6 +200,19 @@ struct Download: Codable, Identifiable {
     var remainingTime: TimeInterval? {
         guard let size, speed > 0 else { return nil }
         return Double(size - received) / speed
+    }
+}
+
+/// What Haul does with a download once it's finished (and extracted, if it was to be).
+enum WhenDone: String, Codable, CaseIterable {
+    case nothing, open, reveal
+
+    var label: String {
+        switch self {
+        case .nothing: "Do Nothing"
+        case .open: "Open"
+        case .reveal: "Show in Finder"
+        }
     }
 }
 

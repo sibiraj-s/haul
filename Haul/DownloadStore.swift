@@ -134,15 +134,17 @@ final class DownloadStore {
     enum Start { case now, queued, paused }
 
     /// `folder` is a folder picked for this download; nil saves to the default folder. `extract`
-    /// unpacks the file when it's done, if it turns out to be an archive Haul can extract.
+    /// unpacks the file when it's done, if it turns out to be an archive Haul can extract, and
+    /// `whenDone` then opens or shows the file (or what was extracted).
     func add(url: URL, probe: Probe.Info?, connections: Int, start: Start, folder: SavedFolder? = nil, replaceExisting: Bool = false,
-             extract: Bool = false) {
+             extract: Bool = false, whenDone: WhenDone = .nothing) {
         var d = Download(url: url, name: probe?.name ?? url.lastPathComponent, size: nil,
                          status: start == .paused ? .paused : .queued, connections: connections)
         if let probe { d.apply(probe) }
         d.queueOrder = start == .now ? queueStart : queueEnd
         if replaceExisting { d.replaceExisting = true }
         if extract { d.extract = true }
+        if whenDone != .nothing { d.whenDone = whenDone }
         if let folder {
             d.folderBookmark = folder.bookmark
             d.folderName = folder.url.lastPathComponent
@@ -627,26 +629,35 @@ final class DownloadStore {
                 }
             }
         }
+        // With extracting, "When done" waits for it, so it never lands on a half-unpacked folder.
         if d.extract == true, let url = items[i].fileURL, Extractor.canExtract(url.lastPathComponent) {
-            extract(d.id, url)
+            extract(d.id, url, then: d.whenDone ?? .nothing)
+        } else if let url = items[i].fileURL {
+            Self.perform(d.whenDone ?? .nothing, on: url)
         }
         if settings.notify { Notifier.finished(items[i], folder: destinationLabel(for: items[i])) }
         NSApp.requestUserAttention(.informationalRequest)
         if settings.removeFinished == .whenFinished { remove(d.id) }
     }
 
-    /// Unpacks a finished archive next to it, in the background.
-    private func extract(_ id: UUID, _ archive: URL) {
+    /// Unpacks a finished archive next to it, in the background, then carries out `whenDone`.
+    private func extract(_ id: UUID, _ archive: URL, then whenDone: WhenDone) {
         guard let i = index(id) else { return }
         _ = destinationFolder(for: items[i])  // makes sure a picked folder's sandbox access is active
         items[i].extracting = true
         Task.detached(priority: .utility) {
             let result = Result { try Extractor.extract(archive) }
-            await MainActor.run { DownloadStore.shared.extractionFinished(id, result) }
+            await MainActor.run { DownloadStore.shared.extractionFinished(id, result, archive: archive, then: whenDone) }
         }
     }
 
-    private func extractionFinished(_ id: UUID, _ result: Result<URL, Error>) {
+    private func extractionFinished(_ id: UUID, _ result: Result<URL, Error>, archive: URL, then whenDone: WhenDone) {
+        // Done even if the download has left the list meanwhile ("Remove When Finished").
+        switch result {
+        case .success(let url): Self.perform(whenDone, on: url)
+        // Opening the archive would only unpack it again; showing it still finds the download.
+        case .failure: if whenDone == .reveal { Self.perform(.reveal, on: archive) }
+        }
         guard let i = index(id) else { return }
         items[i].extracting = false
         switch result {
@@ -658,6 +669,15 @@ final class DownloadStore {
             if settings.notifyFailed { Notifier.extractFailed(items[i]) }
         }
         dirty = true
+    }
+
+    /// Carries out a "When done" choice on a finished file, or what was extracted from it.
+    private static func perform(_ whenDone: WhenDone, on url: URL) {
+        switch whenDone {
+        case .nothing: break
+        case .open: NSWorkspace.shared.open(url)
+        case .reveal: NSWorkspace.shared.activateFileViewerSelecting([url])
+        }
     }
 
     /// Parses an HTTP date such as "Wed, 21 Oct 2015 07:28:00 GMT".

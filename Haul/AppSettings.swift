@@ -87,6 +87,8 @@ final class AppSettings {
     var recordSource: Bool { didSet { save(recordSource, "recordSource") } }
     /// Last choice for "Extract when finished" in the Add panel.
     var extractArchives: Bool { didSet { save(extractArchives, "extractArchives") } }
+    /// Last choice for "When done" in the Add panel.
+    var whenDone: WhenDone { didSet { save(whenDone.rawValue, "whenDone") } }
     private(set) var launchAtLogin = SMAppService.mainApp.status == .enabled
     /// Default save folder chosen by the user; nil means ~/Downloads.
     private(set) var defaultFolder: SavedFolder?
@@ -125,6 +127,7 @@ final class AppSettings {
         useServerDate = d.object(forKey: "useServerDate") as? Bool ?? false
         recordSource = d.object(forKey: "recordSource") as? Bool ?? true
         extractArchives = d.object(forKey: "extractArchives") as? Bool ?? false
+        whenDone = WhenDone(rawValue: d.string(forKey: "whenDone") ?? "") ?? .nothing
         defaultFolder = d.data(forKey: "defaultFolder").flatMap { SavedFolder(bookmark: $0) }
         recentFolders = (d.array(forKey: "recentFolders") as? [Data] ?? []).compactMap { SavedFolder(bookmark: $0) }
     }

@@ -11,6 +11,7 @@ struct AddDownloadPanel: View {
     @State private var connections = AppSettings.shared.connections
     @State private var startNow = true
     @State private var extract = AppSettings.shared.extractArchives
+    @State private var whenDone = AppSettings.shared.whenDone
     /// Folder picked for this download; nil uses the default from Settings.
     @State private var folder: SavedFolder?
     /// When a file with the same name is already in the destination: replace it rather than keep both.
@@ -166,6 +167,11 @@ struct AddDownloadPanel: View {
                 GridRow {
                     Text("Connections").foregroundStyle(Theme.text2)
                     DesignSegmented(options: [1, 4, 8, 16].map { ($0, "\($0)") }, selection: $connections)
+                }
+                GridRow {
+                    Text("When done").foregroundStyle(Theme.text2)
+                    DesignSegmented(options: WhenDone.allCases.map { ($0, $0.label) }, selection: $whenDone)
+                        .help(offersExtract && extract ? "After extracting, opens or shows what was extracted." : "")
                 }
                 if offersExtract {
                     GridRow {
@@ -398,11 +404,12 @@ struct AddDownloadPanel: View {
         // Only archives get extracted, so the choice can apply to every download in a batch.
         let extracting = offersExtract && extract
         if offersExtract { store.settings.extractArchives = extract }
+        store.settings.whenDone = whenDone
         if isBatch {
             // Queued rather than started, so the simultaneous-download limit applies.
             for url in newLinks {
                 store.add(url: url, probe: batchInfo[url], connections: connections, start: .queued, folder: folder,
-                          extract: extracting)
+                          extract: extracting, whenDone: whenDone)
             }
             return close()
         }
@@ -411,7 +418,7 @@ struct AddDownloadPanel: View {
         if case .ok(let i) = probe { info = i }
         let replacing = replace && fileName.flatMap { store.existingFile(named: $0, in: folder) } != nil
         store.add(url: url, probe: info, connections: connections, start: startNow ? .now : .paused, folder: folder,
-                  replaceExisting: replacing, extract: extracting)
+                  replaceExisting: replacing, extract: extracting, whenDone: whenDone)
         close()
     }
 }
