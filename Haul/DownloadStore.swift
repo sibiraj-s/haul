@@ -17,6 +17,8 @@ final class DownloadStore {
     var renaming: UUID?
     /// Download shown in the Update Link panel.
     var updatingLink: UUID?
+    /// Links sent from another app (a haul:// link, the Services menu), waiting for the Add panel to take them.
+    var incomingLinks: [URL] = []
     private(set) var onExpensiveNetwork = false
 
     /// Set by a view that has access to `openWindow`, so non-view code can bring the main window back.
@@ -480,6 +482,13 @@ final class DownloadStore {
     func requestAdd() {
         showAdd = true
         showMainWindow()
+    }
+
+    /// Opens the Add panel with `links` filled in, for the user to confirm.
+    func requestAdd(_ links: [URL]) {
+        incomingLinks += links
+        updatingLink = nil
+        requestAdd()
     }
 
     // MARK: - Engine lifecycle

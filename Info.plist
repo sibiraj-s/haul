@@ -14,5 +14,40 @@
 	<!-- Installs updates through Sparkle's XPC service, since the sandbox can't replace the app. -->
 	<key>SUEnableInstallerLauncherService</key>
 	<true/>
+	<!-- haul://add?url=… opens the Add panel with the links filled in (IncomingLinks). -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>Haul download link</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>haul</string>
+			</array>
+		</dict>
+	</array>
+	<!-- "Download with Haul" in the Services menu for selected links. An NSRequiredContext,
+	     even an empty one, makes macOS show the service without enabling it in Settings first. -->
+	<key>NSServices</key>
+	<array>
+		<dict>
+			<key>NSMenuItem</key>
+			<dict>
+				<key>default</key>
+				<string>Download with Haul</string>
+			</dict>
+			<key>NSMessage</key>
+			<string>downloadLinks</string>
+			<key>NSPortName</key>
+			<string>Haul</string>
+			<key>NSRequiredContext</key>
+			<dict/>
+			<key>NSSendTypes</key>
+			<array>
+				<string>public.url</string>
+				<string>public.utf8-plain-text</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

@@ -14,6 +14,7 @@ A native download manager for macOS, built with SwiftUI.
 - Automatic retries, and fresh links for expired downloads (Update Link)
 - Sorting into folders by kind, duplicate detection, SHA-256 checksums
 - Menu bar progress, Dock progress, and notifications
+- Links from other apps through Services → Download with Haul, or `haul://add?url=<encoded link>`
 
 ## Install
 

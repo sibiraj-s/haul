@@ -107,6 +107,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let settings = AppSettings.shared
         if settings.notify || settings.notifyAdded || settings.notifyFailed || settings.dockProgress { Notifier.requestAuthorization() }
         Updater.shared.start()
+        NSApp.servicesProvider = ServiceProvider.shared
+    }
+
+    /// haul://add links from other apps and browser extensions.
+    func application(_ application: NSApplication, open urls: [URL]) {
+        let links = urls.flatMap(IncomingLinks.links)
+        if !links.isEmpty { DownloadStore.shared.requestAdd(links) }
     }
 
     /// Keep running in the menu bar after the window closes.

@@ -37,7 +37,7 @@ struct AddDownloadPanel: View {
 
     /// Splits on spaces and new lines, and on commas or semicolons between links
     /// ("a.com/x, b.com/y" or "a.com/x;b.com/y"). A comma inside a link is kept.
-    private static func words(in text: String) -> [String] {
+    static func words(in text: String) -> [String] {
         text.split(whereSeparator: \.isWhitespace).flatMap { word in
             word.split(separator: /[,;](?=https?:\/\/)/).map { $0.trimmingCharacters(in: CharacterSet(charactersIn: ",;")) }
         }
@@ -45,15 +45,18 @@ struct AddDownloadPanel: View {
     }
 
     /// The valid links among `words`, without repeats.
-    private var links: [URL] {
-        var seen = Set<URL>()
-        return words.compactMap { Self.link($0) }.filter { seen.insert($0).inserted }
-    }
+    private var links: [URL] { Self.links(in: address) }
 
-    private static func link(_ text: String) -> URL? {
+    static func link(_ text: String) -> URL? {
         guard let url = URL(string: text), let scheme = url.scheme?.lowercased(),
               scheme == "http" || scheme == "https", url.host() != nil else { return nil }
         return url
+    }
+
+    /// The valid links in `text`, without repeats.
+    static func links(in text: String) -> [URL] {
+        var seen = Set<URL>()
+        return words(in: text).compactMap(link).filter { seen.insert($0).inserted }
     }
 
     /// The link, when exactly one was entered.
@@ -81,8 +84,14 @@ struct AddDownloadPanel: View {
         .transition(.opacity)
         .onAppear {
             withAnimation(.easeOut(duration: 0.18)) { appeared = true }
-            // Pre-fill copied links, as long as the clipboard holds nothing but links.
-            if let s = NSPasteboard.general.string(forType: .string) {
+            // Links sent from another app come first; otherwise pre-fill copied links, as long
+            // as the clipboard holds nothing but links.
+            if !store.incomingLinks.isEmpty {
+                prefilled = true
+                address = store.incomingLinks.map(\.absoluteString).joined(separator: " ")
+                store.incomingLinks = []
+                showAddressStart(selectingAll: true)
+            } else if let s = NSPasteboard.general.string(forType: .string) {
                 let copied = Self.words(in: s)
                 if !copied.isEmpty, copied.count <= 200, copied.allSatisfy({ Self.link($0) != nil }) {
                     prefilled = true
@@ -91,6 +100,14 @@ struct AddDownloadPanel: View {
                 }
             }
             addressFocused = true
+        }
+        .onChange(of: store.incomingLinks) { _, incoming in
+            // More links sent while the panel is open join the ones already entered.
+            guard !incoming.isEmpty else { return }
+            let added = incoming.filter { !links.contains($0) }.map(\.absoluteString)
+            store.incomingLinks = []
+            guard !added.isEmpty else { return }
+            address = ([address.trimmingCharacters(in: .whitespacesAndNewlines)] + added).filter { !$0.isEmpty }.joined(separator: " ")
         }
         .task(id: isBatch ? newLinks : []) {
             guard isBatch else { return }
