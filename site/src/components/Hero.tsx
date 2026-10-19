@@ -1,4 +1,3 @@
-import { links } from '../links'
 import { useLatestRelease } from '../useLatestRelease'
 import { DownloadIcon } from './Icons'
 
@@ -29,12 +28,6 @@ export function Hero() {
         </a>
         <span className="text-[13px] text-text2">
           Free and open source · Version {version} · macOS 26 or later · Apple Silicon
-        </span>
-        <span className="text-[13px] text-text2">
-          Haul isn't signed with a Developer ID yet.{' '}
-          <a href={links.install} className="text-accent hover:underline">
-            How to open it
-          </a>
         </span>
       </div>
     </section>

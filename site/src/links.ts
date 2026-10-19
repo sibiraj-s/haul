@@ -2,7 +2,6 @@ const repo = 'https://github.com/sibiraj-s/haul'
 
 export const links = {
   repo,
-  install: `${repo}#install`,
   releases: `${repo}/releases`,
   latestRelease: `${repo}/releases/latest`,
   issues: `${repo}/issues`,
