@@ -85,6 +85,8 @@ final class AppSettings {
     var useServerDate: Bool { didSet { save(useServerDate, "useServerDate") } }
     /// Record the link a file came from (Finder's "Where from").
     var recordSource: Bool { didSet { save(recordSource, "recordSource") } }
+    /// Last choice for "Extract when finished" in the Add panel.
+    var extractArchives: Bool { didSet { save(extractArchives, "extractArchives") } }
     private(set) var launchAtLogin = SMAppService.mainApp.status == .enabled
     /// Default save folder chosen by the user; nil means ~/Downloads.
     private(set) var defaultFolder: SavedFolder?
@@ -122,6 +124,7 @@ final class AppSettings {
         skipWebPages = d.object(forKey: "skipWebPages") as? Bool ?? true
         useServerDate = d.object(forKey: "useServerDate") as? Bool ?? false
         recordSource = d.object(forKey: "recordSource") as? Bool ?? true
+        extractArchives = d.object(forKey: "extractArchives") as? Bool ?? false
         defaultFolder = d.data(forKey: "defaultFolder").flatMap { SavedFolder(bookmark: $0) }
         recentFolders = (d.array(forKey: "recentFolders") as? [Data] ?? []).compactMap { SavedFolder(bookmark: $0) }
     }

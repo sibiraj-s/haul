@@ -13,6 +13,7 @@ A native download manager for macOS, built with SwiftUI.
 - Speed limit, a nightly download schedule, and pausing on Personal Hotspot
 - Automatic retries, and fresh links for expired downloads (Update Link)
 - Sorting into folders by kind, duplicate detection, SHA-256 checksums
+- Extracting zip, tar and 7z archives when they finish
 - Menu bar progress, Dock progress, and notifications
 - Links from other apps through Services → Download with Haul, or `haul://add?url=<encoded link>`
 - A Safari extension: right-click a link and choose Download with Haul (turn it on in Safari → Settings → Extensions)

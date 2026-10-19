@@ -163,6 +163,11 @@ struct Download: Codable, Identifiable {
     /// The sign-in the server asked for (with `issue == .signIn`).
     var authRealm: String?
     var authDigest: Bool?
+    /// Extract the file once it's downloaded, if it's an archive Haul can extract (`Extractor`).
+    var extract: Bool?
+    /// What extracting produced, or why it failed.
+    var extractedURL: URL?
+    var extractError: String?
 
     /// Live engine state; not persisted.
     var speed: Double = 0
@@ -174,9 +179,10 @@ struct Download: Codable, Identifiable {
     /// Automatic retries used since the download last made progress, and when the next is due.
     var retries = 0
     var retryAt: Date?
+    var extracting = false
 
     enum CodingKeys: String, CodingKey {
-        case id, url, name, size, status, connections, resumable, segments, added, finished, error, fileURL, sha256, renamed, etag, lastModified, issue, folderBookmark, folderName, queueOrder, replaceExisting, authRealm, authDigest
+        case id, url, name, size, status, connections, resumable, segments, added, finished, error, fileURL, sha256, renamed, etag, lastModified, issue, folderBookmark, folderName, queueOrder, replaceExisting, authRealm, authDigest, extract, extractedURL, extractError
     }
 
     var kind: FileKind { .of(name) }

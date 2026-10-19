@@ -10,6 +10,7 @@ struct AddDownloadPanel: View {
     @State private var batchErrors: [URL: String] = [:]
     @State private var connections = AppSettings.shared.connections
     @State private var startNow = true
+    @State private var extract = AppSettings.shared.extractArchives
     /// Folder picked for this download; nil uses the default from Settings.
     @State private var folder: SavedFolder?
     /// When a file with the same name is already in the destination: replace it rather than keep both.
@@ -166,6 +167,13 @@ struct AddDownloadPanel: View {
                     Text("Connections").foregroundStyle(Theme.text2)
                     DesignSegmented(options: [1, 4, 8, 16].map { ($0, "\($0)") }, selection: $connections)
                 }
+                if offersExtract {
+                    GridRow {
+                        Color.clear.frame(width: 96, height: 1)
+                        DesignCheckbox(title: isBatch ? "Extract archives when finished" : "Extract when finished", isOn: $extract)
+                            .help("Unpacks it next to the archive, which is kept.")
+                    }
+                }
                 if !isBatch {
                     GridRow {
                         Color.clear.frame(width: 96, height: 1)
@@ -245,6 +253,13 @@ struct AddDownloadPanel: View {
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
         .background(RoundedRectangle(cornerRadius: 10).fill(Theme.orange.opacity(0.1)))
+    }
+
+    /// Whether any of the files being added is an archive Haul can extract.
+    private var offersExtract: Bool {
+        if isBatch { return newLinks.contains { Extractor.canExtract(batchName($0)) } }
+        if case .ok = probe, blockedWebPage { return false }
+        return fileName.map(Extractor.canExtract) ?? false
     }
 
     private var kind: FileKind {
@@ -380,10 +395,14 @@ struct AddDownloadPanel: View {
 
     private func confirm() {
         guard canConfirm else { return }
+        // Only archives get extracted, so the choice can apply to every download in a batch.
+        let extracting = offersExtract && extract
+        if offersExtract { store.settings.extractArchives = extract }
         if isBatch {
             // Queued rather than started, so the simultaneous-download limit applies.
             for url in newLinks {
-                store.add(url: url, probe: batchInfo[url], connections: connections, start: .queued, folder: folder)
+                store.add(url: url, probe: batchInfo[url], connections: connections, start: .queued, folder: folder,
+                          extract: extracting)
             }
             return close()
         }
@@ -392,7 +411,7 @@ struct AddDownloadPanel: View {
         if case .ok(let i) = probe { info = i }
         let replacing = replace && fileName.flatMap { store.existingFile(named: $0, in: folder) } != nil
         store.add(url: url, probe: info, connections: connections, start: startNow ? .now : .paused, folder: folder,
-                  replaceExisting: replacing)
+                  replaceExisting: replacing, extract: extracting)
         close()
     }
 }

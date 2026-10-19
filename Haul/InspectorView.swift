@@ -147,9 +147,31 @@ struct InspectorView: View {
                     .textSelection(.enabled)
                     .help(d.sha256 ?? "")
             }
+            if d.extract == true && Extractor.canExtract(d.name) {
+                DetailRow("Extract") { extraction(d) }
+            }
         }
         .font(.system(size: 12))
         .padding(.horizontal, 12)
+    }
+
+    /// Where the archive was extracted to (click to show it in Finder), or how extracting is going.
+    @ViewBuilder private func extraction(_ d: Download) -> some View {
+        if let url = d.extractedURL {
+            Button {
+                NSWorkspace.shared.activateFileViewerSelecting([url])
+            } label: {
+                Text(url.lastPathComponent).lineLimit(1).truncationMode(.middle)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(Theme.accent)
+            .help("Show in Finder")
+        } else if let error = d.extractError {
+            Text(error).foregroundStyle(Theme.red).lineLimit(2).help(error)
+        } else {
+            Text(d.extracting ? "Extracting…" : d.status == .completed ? "Not extracted" : "After download")
+                .foregroundStyle(Theme.text2)
+        }
     }
 
     private func actions(_ d: Download) -> some View {

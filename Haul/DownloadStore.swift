@@ -133,13 +133,16 @@ final class DownloadStore {
     /// free slot), `.queued` to the back, and `.paused` waits until it's started by hand.
     enum Start { case now, queued, paused }
 
-    /// `folder` is a folder picked for this download; nil saves to the default folder.
-    func add(url: URL, probe: Probe.Info?, connections: Int, start: Start, folder: SavedFolder? = nil, replaceExisting: Bool = false) {
+    /// `folder` is a folder picked for this download; nil saves to the default folder. `extract`
+    /// unpacks the file when it's done, if it turns out to be an archive Haul can extract.
+    func add(url: URL, probe: Probe.Info?, connections: Int, start: Start, folder: SavedFolder? = nil, replaceExisting: Bool = false,
+             extract: Bool = false) {
         var d = Download(url: url, name: probe?.name ?? url.lastPathComponent, size: nil,
                          status: start == .paused ? .paused : .queued, connections: connections)
         if let probe { d.apply(probe) }
         d.queueOrder = start == .now ? queueStart : queueEnd
         if replaceExisting { d.replaceExisting = true }
+        if extract { d.extract = true }
         if let folder {
             d.folderBookmark = folder.bookmark
             d.folderName = folder.url.lastPathComponent
@@ -624,9 +627,37 @@ final class DownloadStore {
                 }
             }
         }
+        if d.extract == true, let url = items[i].fileURL, Extractor.canExtract(url.lastPathComponent) {
+            extract(d.id, url)
+        }
         if settings.notify { Notifier.finished(items[i], folder: destinationLabel(for: items[i])) }
         NSApp.requestUserAttention(.informationalRequest)
         if settings.removeFinished == .whenFinished { remove(d.id) }
+    }
+
+    /// Unpacks a finished archive next to it, in the background.
+    private func extract(_ id: UUID, _ archive: URL) {
+        guard let i = index(id) else { return }
+        _ = destinationFolder(for: items[i])  // makes sure a picked folder's sandbox access is active
+        items[i].extracting = true
+        Task.detached(priority: .utility) {
+            let result = Result { try Extractor.extract(archive) }
+            await MainActor.run { DownloadStore.shared.extractionFinished(id, result) }
+        }
+    }
+
+    private func extractionFinished(_ id: UUID, _ result: Result<URL, Error>) {
+        guard let i = index(id) else { return }
+        items[i].extracting = false
+        switch result {
+        case .success(let url):
+            items[i].extractedURL = url
+            items[i].extractError = nil
+        case .failure(let error):
+            items[i].extractError = error.localizedDescription
+            if settings.notifyFailed { Notifier.extractFailed(items[i]) }
+        }
+        dirty = true
     }
 
     /// Parses an HTTP date such as "Wed, 21 Oct 2015 07:28:00 GMT".
@@ -925,6 +956,10 @@ nonisolated final class Notifier: NSObject, UNUserNotificationCenterDelegate {
 
     @MainActor static func failed(_ d: Download) {
         post(d, title: "Download Failed", body: d.error ?? "Unknown error")
+    }
+
+    @MainActor static func extractFailed(_ d: Download) {
+        post(d, title: "Couldn't Extract", body: d.extractError ?? "Unknown error")
     }
 
     /// One notification per download: a newer one (e.g. finished) replaces the earlier (added).
