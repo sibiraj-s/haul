@@ -125,10 +125,18 @@ if [[ -n "$team" ]]; then
 fi
 
 echo "==> Packaging $dmg"
+# dmgbuild lays out the Finder window (background, icon positions) without scripting
+# Finder, so it works the same on CI.
+python3 -m venv "$work/venv"
+"$work/venv/bin/pip" install -q --disable-pip-version-check dmgbuild==1.6.7
 mkdir -p "$stage"
-cp -R "$app" "$stage/"
-ln -s /Applications "$stage/Applications"
-hdiutil create -volname Haul -srcfolder "$stage" -format UDZO -ov "$dmg" -quiet
+swift scripts/dmg/background.swift "$stage/background.png" 1
+swift scripts/dmg/background.swift "$stage/background@2x.png" 2
+tiffutil -cathidpicheck "$stage/background.png" "$stage/background@2x.png" -out "$stage/background.tiff" 2>/dev/null
+# hdiutil needs absolute paths, and dmgbuild still uses the hdiutil commands macOS now
+# marks as deprecated; hide those warnings.
+"$work/venv/bin/dmgbuild" -s scripts/dmg/settings.py -D app="$PWD/$app" -D background="$PWD/$stage/background.tiff" Haul "$PWD/$dmg" \
+    >/dev/null 2> >(grep -v "is deprecated" >&2 || true)
 hdiutil verify "$dmg" -quiet
 unregister
 rm -rf "$stage"
