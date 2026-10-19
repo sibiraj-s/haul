@@ -16,6 +16,7 @@ A native download manager for macOS, built with SwiftUI.
 - Menu bar progress, Dock progress, and notifications
 - Links from other apps through Services → Download with Haul, or `haul://add?url=<encoded link>`
 - A Safari extension: right-click a link and choose Download with Haul (turn it on in Safari → Settings → Extensions)
+- Haul in the Share menu for web links (turn it on from the Share menu’s Edit Extensions)
 
 ## Install
 
