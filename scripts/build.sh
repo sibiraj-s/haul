@@ -48,13 +48,17 @@ build_number="$(TZ=UTC git log -1 --format=%cd --date=format-local:%Y%m%d.%H%M)"
 
 repository=sibiraj-s/haul
 out=build
-derived="$out/DerivedData"
-archive="$out/Haul.xcarchive"
-stage="$out/dmg"
+# Everything holding a copy of the app goes under one .noindex folder, which Spotlight
+# skips, so built copies don't show up next to the installed Haul in app search.
+work="$out/work.noindex"
+derived="$work/DerivedData"
+archive="$work/Haul.xcarchive"
+export_dir="$work/export"
+stage="$work/dmg"
 dmg="$out/Haul-$version.dmg"
 appcast="$out/appcast.xml"
 if [[ -n "$team" ]]; then
-    app="$out/export/Haul.app"
+    app="$export_dir/Haul.app"
 else
     app="$derived/Build/Products/Release/Haul.app"
 fi
@@ -87,14 +91,14 @@ xcodebuild=(xcodebuild -project Haul.xcodeproj -scheme Haul -configuration Relea
     -destination 'generic/platform=macOS' -derivedDataPath "$derived" -onlyUsePackageVersionsFromResolvedFile -quiet)
 
 echo "==> Building Haul $version ($build_number)${team:+, signed for team $team}"
-rm -rf "$stage" "$dmg" "$appcast" "$archive" "$out/export" "$out/ExportOptions.plist"
+rm -rf "$stage" "$dmg" "$appcast" "$archive" "$export_dir" "$out/ExportOptions.plist"
 if [[ -n "$team" ]]; then
     # Exporting re-signs Sparkle's helpers and XPC services for notarization.
     "${xcodebuild[@]}" -archivePath "$archive" "${settings[@]}" archive
     /usr/libexec/PlistBuddy -c "Add :method string developer-id" -c "Add :teamID string $team" \
         -c "Add :signingStyle string manual" -c "Add :signingCertificate string $identity" \
         "$out/ExportOptions.plist" >/dev/null
-    xcodebuild -exportArchive -archivePath "$archive" -exportPath "$out/export" \
+    xcodebuild -exportArchive -archivePath "$archive" -exportPath "$export_dir" \
         -exportOptionsPlist "$out/ExportOptions.plist" -quiet
     rm "$out/ExportOptions.plist"
 else
