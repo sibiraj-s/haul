@@ -18,6 +18,7 @@ A native download manager for macOS, built with SwiftUI.
 - Links from other apps through Services → Download with Haul, or `haul://add?url=<encoded link>`
 - A Safari extension: right-click a link and choose Download with Haul (turn it on in Safari → Settings → Extensions)
 - Haul in the Share menu for web links (turn it on from the Share menu’s Edit Extensions)
+- Keyboard shortcuts for the selected download, listed in Help → Keyboard Shortcuts
 
 ## Install
 

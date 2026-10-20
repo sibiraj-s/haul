@@ -33,6 +33,11 @@ struct HaulApp: App {
         .defaultSize(width: 1180, height: 720)
         .commands { HaulCommands(store: store) }
 
+        Window("Keyboard Shortcuts", id: "shortcuts") {
+            ShortcutsView()
+        }
+        .windowResizability(.contentSize)
+
         MenuBarExtra(isInserted: $settings.menuBar) {
             MenuBarPopover()
                 .environment(store)
@@ -71,24 +76,115 @@ private struct HaulCommands: Commands {
             Button("Add Download…") { store.requestAdd() }
                 .keyboardShortcut("n")
         }
+        CommandGroup(before: .sidebar) {
+            ViewCommands(store: store)
+        }
         CommandMenu("Downloads") {
+            SelectionCommands(store: store)
+            Divider()
             Button("Pause All") { store.pauseAll() }
                 .keyboardShortcut("p", modifiers: [.command, .option])
             Button("Resume All") { store.resumeAll() }
                 .keyboardShortcut("r", modifiers: [.command, .option])
             Divider()
             Button("Clear Completed…") { store.requestClearCompleted() }
+                .keyboardShortcut(.delete, modifiers: [.command, .shift])
         }
         CommandGroup(before: .windowList) {
             Button("Show Main Window") { store.showMainWindow() }
                 .keyboardShortcut("0")
         }
         CommandGroup(after: .help) {
+            ShortcutsButton()
+            Divider()
             Button("Sponsor Haul…") {
                 NSWorkspace.shared.open(.sponsor)
             }
         }
     }
+}
+
+/// A View to get `openWindow`, which Commands don't have.
+private struct ShortcutsButton: View {
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        Button("Keyboard Shortcuts") { openWindow(id: "shortcuts") }
+            .keyboardShortcut("/")
+    }
+}
+
+/// Commands for the selected download. A View for the same reason as `CheckForUpdatesButton`.
+private struct SelectionCommands: View {
+    let store: DownloadStore
+
+    var body: some View {
+        let d = store.showAdd || store.updatingLink != nil ? nil : store.selected
+        let done = d?.status == .completed
+        Button("Open") { d.map(store.open) }
+            .keyboardShortcut("o")
+            .disabled(!done)
+        Button("Show in Finder") { d.map(store.revealInFinder) }
+            .keyboardShortcut("r")
+            .disabled(d == nil)
+        Button(toggleTitle(d)) { d.map { store.toggle($0.id) } }
+            .disabled(d == nil || done)
+        Button("Rename…") { d.map { store.beginRename($0.id) } }
+            .disabled(d == nil)
+        Button("Copy Link") { d.map { copyToPasteboard($0.url.absoluteString) } }
+            .keyboardShortcut("c", modifiers: [.command, .shift])
+            .disabled(d == nil)
+        Button("Remove…") {
+            // Menu shortcuts run before the text field gets the key, so give ⌘⌫ back to it.
+            if let field = NSApp.keyWindow?.firstResponder as? NSTextView {
+                field.deleteToBeginningOfLine(nil)
+            } else if let d {
+                store.requestRemove(d.id)
+            }
+        }
+        .keyboardShortcut(.delete)
+        .disabled(d == nil)
+    }
+
+    private func toggleTitle(_ d: Download?) -> String {
+        switch d?.status {
+        case .downloading: "Pause"
+        case .queued: "Start Now"
+        case .failed: d?.issue == .signIn ? "Sign In…" : "Retry"
+        default: "Resume"
+        }
+    }
+}
+
+/// Sidebar filters, and the panels whose visibility each window keeps in scene storage.
+private struct ViewCommands: View {
+    let store: DownloadStore
+    @FocusedBinding(\.showSidebar) private var showSidebar
+    @FocusedBinding(\.showInspector) private var showInspector
+
+    var body: some View {
+        Button(showSidebar == false ? "Show Sidebar" : "Hide Sidebar") {
+            withAnimation(.easeOut(duration: 0.2)) { showSidebar?.toggle() }
+        }
+        .keyboardShortcut("s", modifiers: [.command, .control])
+        .disabled(showSidebar == nil)
+        Button(showInspector == false ? "Show Inspector" : "Hide Inspector") {
+            withAnimation(.easeOut(duration: 0.2)) { showInspector?.toggle() }
+        }
+        .keyboardShortcut("i", modifiers: [.command, .option])
+        .disabled(showInspector == nil)
+        Divider()
+        ForEach(Array(SidebarFilter.library.enumerated()), id: \.offset) { n, f in
+            Button(f.title) { store.filter = f }
+                .keyboardShortcut(KeyEquivalent(Character("\(n + 1)")))
+        }
+        Divider()
+    }
+}
+
+extension FocusedValues {
+    @Entry var showSidebar: Binding<Bool>?
+    @Entry var showInspector: Binding<Bool>?
 }
 
 /// A View, not inline in `HaulCommands`: Commands don't reliably redraw when `canCheck`

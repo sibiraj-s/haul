@@ -43,6 +43,8 @@ struct ContentView: View {
         .animation(.easeOut(duration: 0.18), value: store.showAdd)
         .animation(.easeOut(duration: 0.18), value: store.updatingLink)
         .ignoresSafeArea()
+        .focusedSceneValue(\.showSidebar, $showSidebar)
+        .focusedSceneValue(\.showInspector, $showInspector)
         .background(WindowConfigurator { if window !== $0 { window = $0 } })
         .onAppear { store.openMainWindow = { openWindow(id: "main") } }
         .onChange(of: store.renaming) { _, id in
@@ -207,7 +209,7 @@ private struct HeaderBar: View {
             if !showSidebar {
                 TrafficLights(window: window).padding(.trailing, 6)
             }
-            iconButton("sidebar.left", help: "Toggle Sidebar") {
+            iconButton("sidebar.left", help: "Toggle Sidebar (⌃⌘S)") {
                 withAnimation(.easeOut(duration: 0.2)) { showSidebar.toggle() }
             }
             VStack(alignment: .leading, spacing: 0) {
@@ -268,7 +270,7 @@ private struct HeaderBar: View {
                 Button("") { searchFocused = true }.keyboardShortcut("f").hidden()
             }
 
-            iconButton("sidebar.right", help: "Toggle Inspector", color: showInspector ? Theme.accent : Theme.text) {
+            iconButton("sidebar.right", help: "Toggle Inspector (⌥⌘I)", color: showInspector ? Theme.accent : Theme.text) {
                 withAnimation(.easeOut(duration: 0.2)) { showInspector.toggle() }
             }
         }
@@ -346,7 +348,7 @@ private struct DownloadList: View {
             .focusable()
             .focusEffectDisabled()
             .focused($focused)
-            .onKeyPress(keys: [.upArrow, .downArrow, .space, .delete, .return]) { press in
+            .onKeyPress(keys: [.upArrow, .downArrow, .space, .return]) { press in
                 handle(press, rows: rows, proxy: proxy)
             }
         }
@@ -369,10 +371,6 @@ private struct DownloadList: View {
             // Return renames the selection, as in Finder.
             guard let id = store.selection else { return .ignored }
             store.beginRename(id)
-            return .handled
-        case .delete where press.modifiers.contains(.command):
-            guard let id = store.selection else { return .ignored }
-            store.requestRemove(id)
             return .handled
         default:
             return .ignored
