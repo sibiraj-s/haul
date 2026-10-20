@@ -48,9 +48,10 @@ export const ScheduleIcon = (p: IconProps) => (
     <path d="M12 9v4l2.5 2M9.5 2.5h5" />
   </Glyph>
 )
-export const BellIcon = (p: IconProps) => (
+export const LaptopIcon = (p: IconProps) => (
   <Glyph {...p}>
-    <path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15zM10 20.5a2 2 0 0 0 4 0" />
+    <rect x="4.5" y="5" width="15" height="10.5" rx="1.5" />
+    <path d="M2.5 18.5h19" />
   </Glyph>
 )
 export const HeartIcon = (p: IconProps) => (

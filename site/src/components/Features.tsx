@@ -1,36 +1,36 @@
 import type { ComponentType } from 'react'
-import { BellIcon, ConnectionsIcon, MenuBarIcon, PauseIcon, QueueIcon, ScheduleIcon } from './Icons'
+import { ConnectionsIcon, LaptopIcon, MenuBarIcon, PauseIcon, QueueIcon, ScheduleIcon } from './Icons'
 
 const features: { Icon: ComponentType<{ className?: string }>; title: string; body: string }[] = [
   {
     Icon: ConnectionsIcon,
     title: 'Multi-connection speed',
-    body: 'Large files are split across several connections at once, so they finish faster.',
+    body: 'Up to 16 connections per file. Big downloads finish much faster.',
   },
   {
     Icon: PauseIcon,
     title: 'Pause and resume',
-    body: 'Stop any download and pick it up later, even after a relaunch or a dropped connection. Expired links can be swapped for fresh ones.',
+    body: 'Pick up right where you left off, even after a restart or a dropped connection. Expired link? Swap in a fresh one.',
   },
   {
     Icon: QueueIcon,
     title: 'A queue that runs itself',
-    body: 'Set how many files download at once and reorder the rest. When one finishes, the next one starts.',
+    body: 'Queue up downloads and Haul works through them in order, as many at a time as you like.',
   },
   {
     Icon: MenuBarIcon,
     title: 'Lives in the menu bar',
-    body: 'See live speed and progress at a glance, and manage downloads without opening the window.',
+    body: 'Live speed and progress at a glance. Manage everything without opening a window.',
   },
   {
     Icon: ScheduleIcon,
     title: 'Speed limits and schedules',
-    body: 'Cap bandwidth, let large files run overnight, and pause automatically on Personal Hotspot.',
+    body: 'Cap your bandwidth, run big files overnight, and pause automatically on Personal Hotspot.',
   },
   {
-    Icon: BellIcon,
-    title: 'Feels like a Mac app',
-    body: 'Native notifications, Dock progress, folders sorted by kind, duplicate detection and SHA-256 checksums.',
+    Icon: LaptopIcon,
+    title: 'A native Mac app',
+    body: 'Built with SwiftUI. Notifications, Dock progress, smart folders, duplicate detection and checksums.',
   },
 ]
 

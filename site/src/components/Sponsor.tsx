@@ -14,6 +14,8 @@ export function Sponsor() {
         </p>
         <a
           href={links.sponsor}
+          target="_blank"
+          rel="noreferrer"
           className="mt-2 flex h-10 items-center rounded-full border border-sep bg-card px-5.5 text-[15px] font-semibold text-text hover:border-text2"
         >
           Sponsor Haul
