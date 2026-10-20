@@ -11,5 +11,23 @@
 		<string>$(PRODUCT_BUNDLE_IDENTIFIER)-spks</string>
 		<string>$(PRODUCT_BUNDLE_IDENTIFIER)-spki</string>
 	</array>
+	<!-- The haul command: its link in ~/.local/bin, and the shell startup files that may put
+	     that folder on the PATH (read to check, and the one Haul offers to add it to). -->
+	<key>com.apple.security.temporary-exception.files.home-relative-path.read-write</key>
+	<array>
+		<string>/.local/bin/</string>
+		<string>/.zshrc</string>
+		<string>/.bash_profile</string>
+		<string>/.config/fish/config.fish</string>
+	</array>
+	<key>com.apple.security.temporary-exception.files.home-relative-path.read-only</key>
+	<array>
+		<string>/.zshenv</string>
+		<string>/.zprofile</string>
+		<string>/.zlogin</string>
+		<string>/.bashrc</string>
+		<string>/.profile</string>
+		<string>/.config/fish/fish_variables</string>
+	</array>
 </dict>
 </plist>
