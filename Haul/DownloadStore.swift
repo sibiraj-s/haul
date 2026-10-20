@@ -36,6 +36,11 @@ final class DownloadStore {
     private(set) var pausedForNetwork: Set<UUID> = []
     /// The interface and router of the current network, to tell when it changes.
     @ObservationIgnored private var networkID = ""
+    /// Nothing starts until the first network update, so a relaunch on a hotspot doesn't start
+    /// what was paused for it before we know.
+    @ObservationIgnored private var networkKnown = false
+    /// The last lease read for each interface, for when reading it fails.
+    nonisolated(unsafe) private static var lastLeases: [String: (router: String?, metered: Bool)] = [:]
     /// Queued downloads are held back because of the network.
     var waitingForNetwork: Bool { settings.pauseOnExpensive && onExpensiveNetwork && !allowExpensiveNetwork }
 
@@ -83,7 +88,12 @@ final class DownloadStore {
         pathMonitor.pathUpdateHandler = { [weak self] path in
             // The interface traffic goes over, skipping VPN tunnels; others may still be joined to a hotspot.
             let primary = path.availableInterfaces.first { $0.type != .other && $0.type != .loopback }
-            let lease = primary.flatMap(Self.dhcpLease)
+            // A failed read keeps the last lease, so the network doesn't seem to change.
+            let lease = primary.flatMap { interface in
+                let lease = Self.dhcpLease(interface) ?? Self.lastLeases[interface.name]
+                Self.lastLeases[interface.name] = lease
+                return lease
+            }
             let hotspot = path.isExpensive || lease?.metered == true
             let expensive = hotspot || path.isConstrained
             let lowData = path.isConstrained && !hotspot
@@ -135,6 +145,7 @@ final class DownloadStore {
     }
 
     private func networkChanged(id: String, expensive: Bool, lowData: Bool) {
+        networkKnown = true
         onExpensiveNetwork = expensive
         onLowDataMode = lowData
         // A new network, or one no longer metered, starts fresh: the setting applies again,
@@ -255,17 +266,23 @@ final class DownloadStore {
             signIn(id)
         case .paused, .queued, .failed:
             if let i = index(id) { items[i].retries = 0; items[i].retryAt = nil }
-            if waitingForNetwork { startedOnExpensive.insert(id) }
-            pausedForNetwork.remove(id)
-            begin(id)
+            beginByHand(id)
         case .completed: break
         }
+    }
+
+    /// Starts `id` because the user asked to, so it keeps going while waiting for the network.
+    private func beginByHand(_ id: UUID) {
+        if waitingForNetwork { startedOnExpensive.insert(id) }
+        pausedForNetwork.remove(id)
+        begin(id)
     }
 
     func pause(_ id: UUID) {
         guard let i = index(id) else { return }
         stopEngine(at: i)
         items[i].status = .paused
+        pausedForNetwork.remove(id)
     }
 
     /// Lets downloads run on Personal Hotspot or Low Data Mode until the network changes, and
@@ -287,8 +304,9 @@ final class DownloadStore {
     /// The badge's Pause All: like Pause All, but what it stops resumes on an unmetered network,
     /// and Download Anyway is undone.
     func pauseForNetwork() {
-        pausedForNetwork.formUnion(items.filter { $0.status == .downloading || $0.status == .queued }.map(\.id))
+        let stopping = items.filter { $0.status == .downloading || $0.status == .queued }.map(\.id)
         pauseAll()
+        pausedForNetwork.formUnion(stopping)
         allowExpensiveNetwork = false
         startedOnExpensive = []
     }
@@ -307,6 +325,7 @@ final class DownloadStore {
             items[i].retries = 0
             items[i].retryAt = nil
         }
+        pausedForNetwork = []
         schedule()
     }
 
@@ -459,7 +478,7 @@ final class DownloadStore {
         }
         items[i].status = .paused
         dirty = true
-        begin(id)
+        beginByHand(id)
     }
 
     /// Discards the partial file and downloads again from the start.
@@ -472,7 +491,7 @@ final class DownloadStore {
         items[i].issue = nil
         items[i].status = .paused
         dirty = true
-        begin(id)
+        beginByHand(id)
     }
 
     /// Asks for the username and password the server wants, then tries again.
@@ -482,7 +501,7 @@ final class DownloadStore {
               let i = index(id) else { return }
         items[i].retries = 0
         items[i].retryAt = nil
-        begin(id)
+        beginByHand(id)
     }
 
     /// Asks first (unless turned off in Settings), then removes.
@@ -886,11 +905,18 @@ final class DownloadStore {
     }
 
     private func schedule() {
+        guard networkKnown else { return }
         if waitingForNetwork {
             // Back to the queue so they pick up again once we're on an unmetered network.
             for i in items.indices where items[i].status == .downloading && !startedOnExpensive.contains(items[i].id) {
                 stopEngine(at: i)
                 items[i].status = .queued
+            }
+            // Ones started by hand keep going, automatic retries included.
+            var active = items.filter { $0.status == .downloading }.count
+            for d in queue where startedOnExpensive.contains(d.id) && active < settings.maxConcurrent {
+                begin(d.id)
+                active += 1
             }
             return
         }
