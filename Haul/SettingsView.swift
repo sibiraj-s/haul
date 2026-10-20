@@ -376,6 +376,72 @@ private struct NetworkSettings: View {
                 DesignSwitch(isOn: $settings.autoRetry)
             }
         }
+        ProxySettingsGroup()
+    }
+}
+
+private struct ProxySettingsGroup: View {
+    @Bindable private var settings = AppSettings.shared
+    @State private var password = AppSettings.shared.proxyPassword
+
+    private var caption: String {
+        switch settings.proxyMode {
+        case .system: "Follows System Settings → Network."
+        case .none: "Connects directly, even when the system has a proxy set."
+        case .custom where settings.proxy.endpoint == nil: "Enter a server and port. Until then, the system's proxy is used."
+        case .custom: "Applies to downloads as they start or resume."
+        }
+    }
+
+    var body: some View {
+        DesignGroup {
+            SettingRow(title: "Proxy", caption: caption) {
+                PopUpMenu(options: [(ProxyMode.system, "System"), (.none, "None"), (.custom, "Custom")], selection: $settings.proxyMode)
+            }
+            if settings.proxyMode == .custom {
+                SettingRow(title: "Type") {
+                    DesignSegmented(options: [(ProxyKind.http, "HTTP"), (.socks, "SOCKS5")], selection: $settings.proxyKind, minWidth: 60)
+                }
+                SettingRow(title: "Server") {
+                    HStack(spacing: 6) {
+                        InputField(width: 180) { TextField(text: $settings.proxyHost, prompt: placeholder("proxy.example.com")) { EmptyView() } }
+                        Text(":").foregroundStyle(Theme.text2)
+                        InputField(width: 56) {
+                            TextField("", value: $settings.proxyPort, format: .number.grouping(.never))
+                                .multilineTextAlignment(.trailing)
+                                .monospacedDigit()
+                        }
+                    }
+                }
+                SettingRow(title: "Username", caption: "Optional. The password is kept in the Keychain.") {
+                    InputField(width: 180) { TextField(text: $settings.proxyUser, prompt: placeholder("None")) { EmptyView() } }
+                }
+                SettingRow(title: "Password") {
+                    InputField(width: 180) { SecureField("", text: $password) }
+                        .onChange(of: password) { _, new in settings.setProxyPassword(new) }
+                }
+                SettingRow(title: "Don't use the proxy for", caption: "Separate hosts with commas. A domain covers its subdomains too.") {
+                    InputField(width: 180) { TextField(text: $settings.proxyBypass, prompt: placeholder("localhost, example.com")) { EmptyView() } }
+                }
+            }
+        }
+    }
+
+    private func placeholder(_ text: String) -> Text { Text(text).foregroundStyle(Theme.text3) }
+}
+
+/// A text field with the same chrome as the other controls.
+private struct InputField<Field: View>: View {
+    let width: CGFloat
+    @ViewBuilder let field: Field
+
+    var body: some View {
+        field
+            .textFieldStyle(.plain)
+            .autocorrectionDisabled()
+            .padding(.horizontal, 7)
+            .frame(width: width, height: 24)
+            .controlChrome(RoundedRectangle(cornerRadius: 6))
     }
 }
 

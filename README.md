@@ -11,6 +11,7 @@ A native download manager for macOS, built with SwiftUI.
 - Multi-connection downloads that pause and resume, including across relaunches
 - A queue you can reorder, with a limit on simultaneous downloads
 - Speed limit, a nightly download schedule, and pausing on Personal Hotspot
+- The system proxy, or a custom HTTP or SOCKS5 proxy with sign-in and a list of hosts that skip it
 - Automatic retries, and fresh links for expired downloads (Update Link)
 - Sorting into folders by kind, duplicate detection, SHA-256 checksums
 - Extracting zip, tar and 7z archives, then opening or showing the result in Finder, when they finish

@@ -124,7 +124,9 @@ nonisolated enum Probe {
     private static func once(_ url: URL) async throws -> Info {
         var request = URLRequest(url: url, timeoutInterval: 20)
         request.setValue("bytes=0-0", forHTTPHeaderField: "Range")
-        let (bytes, response) = try await URLSession.shared.bytes(for: request)
+        let session = URLSession(configuration: ProxySettings.sessionConfiguration())
+        defer { session.finishTasksAndInvalidate() }
+        let (bytes, response) = try await session.bytes(for: request)
         bytes.task.cancel()
         guard let http = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
         if http.statusCode == 429 || http.statusCode == 503 {
@@ -250,7 +252,7 @@ nonisolated final class SegmentedDownloader: NSObject, URLSessionDataDelegate, @
     func connectionState() -> (live: Int, serverLimit: Int?) { lock.withLock { (live, serverLimit) } }
 
     func start() {
-        let config = URLSessionConfiguration.default
+        let config = ProxySettings.sessionConfiguration()
         config.httpMaximumConnectionsPerHost = 32
         config.timeoutIntervalForRequest = 60
         session = URLSession(configuration: config, delegate: self, delegateQueue: queue)

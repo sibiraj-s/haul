@@ -80,6 +80,22 @@ final class AppSettings {
     /// Last choice for "Also move the file to the Trash" in the remove dialog.
     var trashOnRemove: Bool { didSet { save(trashOnRemove, "trashOnRemove") } }
     var autoRetry: Bool { didSet { save(autoRetry, "autoRetry") } }
+    var proxyMode: ProxyMode { didSet { save(proxyMode.rawValue, "proxyMode"); publishProxy() } }
+    var proxyKind: ProxyKind {
+        didSet {
+            save(proxyKind.rawValue, "proxyKind")
+            // Follow the new kind's usual port unless one was typed in.
+            if proxyPort == oldValue.defaultPort { proxyPort = proxyKind.defaultPort }
+            publishProxy()
+        }
+    }
+    var proxyHost: String { didSet { save(proxyHost, "proxyHost"); publishProxy() } }
+    var proxyPort: Int { didSet { save(proxyPort, "proxyPort"); publishProxy() } }
+    var proxyUser: String { didSet { save(proxyUser, "proxyUser"); publishProxy() } }
+    /// Hosts that skip the custom proxy, as typed.
+    var proxyBypass: String { didSet { save(proxyBypass, "proxyBypass"); publishProxy() } }
+    /// Kept in the Keychain; change it with `setProxyPassword`.
+    private(set) var proxyPassword: String
     var skipWebPages: Bool { didSet { save(skipWebPages, "skipWebPages") } }
     /// Date saved files with the server's Last-Modified instead of when they finished.
     var useServerDate: Bool { didSet { save(useServerDate, "useServerDate") } }
@@ -123,6 +139,13 @@ final class AppSettings {
         confirmRemove = d.object(forKey: "confirmRemove") as? Bool ?? true
         trashOnRemove = d.object(forKey: "trashOnRemove") as? Bool ?? false
         autoRetry = d.object(forKey: "autoRetry") as? Bool ?? true
+        proxyMode = ProxyMode(rawValue: d.string(forKey: "proxyMode") ?? "") ?? .system
+        proxyKind = ProxyKind(rawValue: d.string(forKey: "proxyKind") ?? "") ?? .http
+        proxyHost = d.string(forKey: "proxyHost") ?? ""
+        proxyPort = d.object(forKey: "proxyPort") as? Int ?? ProxyKind.http.defaultPort
+        proxyUser = d.string(forKey: "proxyUser") ?? ""
+        proxyBypass = d.string(forKey: "proxyBypass") ?? ""
+        proxyPassword = ProxyPassword.read()
         skipWebPages = d.object(forKey: "skipWebPages") as? Bool ?? true
         useServerDate = d.object(forKey: "useServerDate") as? Bool ?? false
         recordSource = d.object(forKey: "recordSource") as? Bool ?? true
@@ -130,7 +153,22 @@ final class AppSettings {
         whenDone = WhenDone(rawValue: d.string(forKey: "whenDone") ?? "") ?? .nothing
         defaultFolder = d.data(forKey: "defaultFolder").flatMap { SavedFolder(bookmark: $0) }
         recentFolders = (d.array(forKey: "recentFolders") as? [Data] ?? []).compactMap { SavedFolder(bookmark: $0) }
+        publishProxy()
     }
+
+    func setProxyPassword(_ password: String) {
+        proxyPassword = password
+        ProxyPassword.save(password)
+        publishProxy()
+    }
+
+    /// The proxy settings as the download sessions will use them.
+    var proxy: ProxySettings {
+        ProxySettings(mode: proxyMode, kind: proxyKind, host: proxyHost, port: proxyPort, username: proxyUser,
+                      password: proxyPassword, bypass: ProxySettings.hosts(proxyBypass))
+    }
+
+    private func publishProxy() { ProxySettings.current = proxy }
 
     /// How long a finished download stays listed under the current settings.
     var finishedKeepTime: TimeInterval? { removeFinished.age(days: removeAfterDays) }
