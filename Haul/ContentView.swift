@@ -228,6 +228,10 @@ private struct HeaderBar: View {
 
             WindowDragArea(window: window)
 
+            if store.onExpensiveNetwork {
+                NetworkBadge()
+            }
+
             Button {
                 settings.limitOn.toggle()
             } label: {
@@ -299,6 +303,88 @@ private struct HeaderBar: View {
         }
         .buttonStyle(.pressable)
         .help(help)
+    }
+}
+
+// MARK: - Network badge
+
+/// Shown in the header on Personal Hotspot or Low Data Mode; click for what it means for downloads.
+private struct NetworkBadge: View {
+    @Environment(DownloadStore.self) private var store
+    @State private var showDetails = false
+
+    var body: some View {
+        let name = store.onLowDataMode ? "Low Data Mode" : "Personal Hotspot"
+        Button {
+            showDetails.toggle()
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: store.onLowDataMode ? "antenna.radiowaves.left.and.right" : "personalhotspot")
+                    .font(.system(size: 12, weight: .medium))
+                Text(store.onLowDataMode ? "Low Data" : "Hotspot")
+                    .font(.system(size: 12, weight: .medium))
+            }
+            .foregroundStyle(Theme.orange)
+            .padding(.horizontal, 10)
+            .frame(height: 28)
+            .background(Capsule().fill(Theme.orange.opacity(0.14)))
+        }
+        .buttonStyle(.pressable)
+        .help(name)
+        .popover(isPresented: $showDetails, arrowEdge: .bottom) {
+            NetworkDetails(name: name) { showDetails = false }
+        }
+    }
+}
+
+/// A view of its own, so it updates as downloads start and stop while it's open.
+private struct NetworkDetails: View {
+    @Environment(DownloadStore.self) private var store
+    let name: String
+    let close: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("On \(name)").font(.system(size: 13, weight: .semibold))
+            Text(details)
+                .font(.system(size: 12))
+                .foregroundStyle(Theme.text2)
+                .fixedSize(horizontal: false, vertical: true)
+            if let action {
+                HStack {
+                    Spacer()
+                    PillButton(title: action.title, height: 24, fontSize: 12) {
+                        action.run()
+                        close()
+                    }
+                }
+                .padding(.top, 4)
+            }
+        }
+        .padding(14)
+        .frame(width: 280)
+    }
+
+    private var details: String {
+        if !store.downloading.isEmpty { return "Downloads are using your data." }
+        if store.waitingForNetwork && !store.queue.isEmpty { return "Queued downloads are waiting." }
+        if store.hasPausedForNetwork { return "Downloads are paused." }
+        return store.waitingForNetwork ? "New downloads will wait." : "New downloads will use your data."
+    }
+
+    /// None of these change the setting: Download Anyway lasts until the network changes.
+    private var action: (title: String, run: () -> Void)? {
+        if !store.downloading.isEmpty {
+            // These resume on their own on an unmetered network.
+            return ("Pause All", { store.pauseForNetwork() })
+        }
+        if store.waitingForNetwork && (!store.queue.isEmpty || store.hasPausedForNetwork) {
+            return ("Download Anyway", { store.downloadAnyway() })
+        }
+        if store.hasPausedForNetwork {
+            return ("Resume All", { store.resumeForNetwork() })
+        }
+        return nil
     }
 }
 

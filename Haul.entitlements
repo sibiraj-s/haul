@@ -5,11 +5,14 @@
 	<!-- Lets Haul remember folders you pick (security-scoped bookmarks) across launches. -->
 	<key>com.apple.security.files.bookmarks.app-scope</key>
 	<true/>
-	<!-- Lets Sparkle's installer service talk to the sandboxed app. -->
+	<!-- System services the sandbox would otherwise block. -->
 	<key>com.apple.security.temporary-exception.mach-lookup.global-name</key>
 	<array>
+		<!-- Sparkle's installer service, which talks to the sandboxed app. -->
 		<string>$(PRODUCT_BUNDLE_IDENTIFIER)-spks</string>
 		<string>$(PRODUCT_BUNDLE_IDENTIFIER)-spki</string>
+		<!-- Lets ipconfig read the DHCP reply, where Android hotspots say they're metered. -->
+		<string>com.apple.network.IPConfiguration</string>
 	</array>
 	<!-- The haul command: its link in ~/.local/bin, and the shell startup files that may put
 	     that folder on the PATH (read to check, and the one Haul offers to add it to). -->

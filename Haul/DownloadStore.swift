@@ -22,7 +22,22 @@ final class DownloadStore {
     /// What Safari sent with incoming links, kept until they're added. A link that's edited in
     /// the Add panel no longer matches, so it goes without.
     @ObservationIgnored var browserContexts: [URL: BrowserContext] = [:]
+    /// On Personal Hotspot, a cellular connection or Low Data Mode.
     private(set) var onExpensiveNetwork = false
+    /// The metered network is one with Low Data Mode turned on, rather than Personal Hotspot.
+    private(set) var onLowDataMode = false
+    /// Set by "Download Anyway" to ignore "Pause on Personal Hotspot" until the Mac changes
+    /// network. The setting itself stays as it is.
+    private(set) var allowExpensiveNetwork = false
+    /// Downloads started by hand while waiting for the network; they keep going on it.
+    @ObservationIgnored private var startedOnExpensive: Set<UUID> = []
+    /// Paused from the network badge; they resume on their own on an unmetered network, and are
+    /// saved as queued so that after a relaunch the setting decides again.
+    private(set) var pausedForNetwork: Set<UUID> = []
+    /// The interface and router of the current network, to tell when it changes.
+    @ObservationIgnored private var networkID = ""
+    /// Queued downloads are held back because of the network.
+    var waitingForNetwork: Bool { settings.pauseOnExpensive && onExpensiveNetwork && !allowExpensiveNetwork }
 
     /// Set by a view that has access to `openWindow`, so non-view code can bring the main window back.
     @ObservationIgnored var openMainWindow: (() -> Void)?
@@ -66,10 +81,78 @@ final class DownloadStore {
             MainActor.assumeIsolated { self?.tick() }
         }
         pathMonitor.pathUpdateHandler = { [weak self] path in
-            let expensive = path.isExpensive || path.isConstrained
-            Task { @MainActor in self?.onExpensiveNetwork = expensive }
+            // The interface traffic goes over, skipping VPN tunnels; others may still be joined to a hotspot.
+            let primary = path.availableInterfaces.first { $0.type != .other && $0.type != .loopback }
+            let lease = primary.flatMap(Self.dhcpLease)
+            let hotspot = path.isExpensive || lease?.metered == true
+            let expensive = hotspot || path.isConstrained
+            let lowData = path.isConstrained && !hotspot
+            let id = "\(primary?.name ?? "") \(lease?.router ?? "")"
+            // In order, so an older update can't land after a newer one.
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated { self?.networkChanged(id: id, expensive: expensive, lowData: lowData) }
+            }
         }
-        pathMonitor.start(queue: .global(qos: .utility))
+        pathMonitor.start(queue: DispatchQueue(label: "Haul.network"))
+    }
+
+    /// The router of `interface`'s DHCP lease, and whether the lease says the network is metered.
+    /// Android hotspots, Pixel's among them, say so in the vendor option, which macOS doesn't
+    /// always act on. Only `ipconfig` shows that option, so read it from its output.
+    nonisolated private static func dhcpLease(_ interface: NWInterface) -> (router: String?, metered: Bool)? {
+        guard interface.type == .wifi || interface.type == .wiredEthernet else { return nil }
+        let ipconfig = Process()
+        ipconfig.executableURL = URL(filePath: "/usr/sbin/ipconfig")
+        ipconfig.arguments = ["getpacket", interface.name]
+        let pipe = Pipe()
+        ipconfig.standardOutput = pipe
+        ipconfig.standardError = FileHandle.nullDevice
+        let exited = DispatchSemaphore(value: 0)
+        ipconfig.terminationHandler = { _ in exited.signal() }
+        guard (try? ipconfig.run()) != nil else { return nil }
+        // Network updates wait on this, so don't let a stuck ipconfig hold them up.
+        if exited.wait(timeout: .now() + 2) == .timedOut {
+            ipconfig.terminate()
+            return nil
+        }
+        let lines = String(decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+            .split(separator: "\n").map(String.init)
+
+        let router = lines.first { $0.hasPrefix("router ") }?.split(separator: "{").last?.split(separator: "}").first.map(String.init)
+        // The vendor option is a hex dump: "0000  41 4e 44 …  4d 45 …     ANDROID_METERED". Collect
+        // the bytes from the hex columns, as the text column can wrap a value across lines.
+        var vendor: [UInt8] = []
+        if let start = lines.firstIndex(where: { $0.hasPrefix("vendor_specific ") }) {
+            for line in lines[(start + 1)...] {
+                guard line.count > 6, line.prefix(4).allSatisfy(\.isHexDigit), line.dropFirst(4).hasPrefix("  ") else { break }
+                vendor += line.dropFirst(6).prefix(49).split(separator: " ").compactMap { UInt8($0, radix: 16) }
+            }
+        }
+        let marker = Array("ANDROID_METERED".utf8)
+        let metered = vendor.count >= marker.count
+            && (0...(vendor.count - marker.count)).contains { Array(vendor[$0..<($0 + marker.count)]) == marker }
+        return (router, metered)
+    }
+
+    private func networkChanged(id: String, expensive: Bool, lowData: Bool) {
+        onExpensiveNetwork = expensive
+        onLowDataMode = lowData
+        // A new network, or one no longer metered, starts fresh: the setting applies again,
+        // whatever was allowed before.
+        if id != networkID || !expensive {
+            networkID = id
+            allowExpensiveNetwork = false
+            startedOnExpensive = []
+        }
+        if !expensive { resumePausedForNetwork() }
+    }
+
+    /// Back to the queue for what the badge's Pause All stopped.
+    private func resumePausedForNetwork() {
+        for i in items.indices where pausedForNetwork.contains(items[i].id) && items[i].status == .paused {
+            items[i].status = .queued
+        }
+        pausedForNetwork = []
     }
 
     // MARK: - Derived state
@@ -119,7 +202,7 @@ final class DownloadStore {
         let n = downloading.count
         if n > 0 { return "\(n) downloading · \(formatBytes(totalSpeed))/s" }
         let queued = items.filter { $0.status == .queued }.count
-        if queued > 0 && settings.pauseOnExpensive && onExpensiveNetwork { return "\(queued) queued · waiting for an unmetered network" }
+        if queued > 0 && waitingForNetwork { return "\(queued) queued · waiting for an unmetered network" }
         if queued > 0 && settings.scheduleOnly && !inScheduleWindow { return "\(queued) queued · starts at \(AppSettings.hourLabel(settings.scheduleFrom))" }
         return "\(queued) queued · idle"
     }
@@ -172,6 +255,8 @@ final class DownloadStore {
             signIn(id)
         case .paused, .queued, .failed:
             if let i = index(id) { items[i].retries = 0; items[i].retryAt = nil }
+            if waitingForNetwork { startedOnExpensive.insert(id) }
+            pausedForNetwork.remove(id)
             begin(id)
         case .completed: break
         }
@@ -181,6 +266,31 @@ final class DownloadStore {
         guard let i = index(id) else { return }
         stopEngine(at: i)
         items[i].status = .paused
+    }
+
+    /// Lets downloads run on Personal Hotspot or Low Data Mode until the network changes, and
+    /// resumes the ones the badge's Pause All stopped.
+    func downloadAnyway() {
+        allowExpensiveNetwork = true
+        resumeForNetwork()
+    }
+
+    /// Resumes what the badge's Pause All stopped, for when nothing holds downloads back.
+    func resumeForNetwork() {
+        resumePausedForNetwork()
+        schedule()
+    }
+
+    /// Downloads paused from the badge, still paused.
+    var hasPausedForNetwork: Bool { items.contains { $0.status == .paused && pausedForNetwork.contains($0.id) } }
+
+    /// The badge's Pause All: like Pause All, but what it stops resumes on an unmetered network,
+    /// and Download Anyway is undone.
+    func pauseForNetwork() {
+        pausedForNetwork.formUnion(items.filter { $0.status == .downloading || $0.status == .queued }.map(\.id))
+        pauseAll()
+        allowExpensiveNetwork = false
+        startedOnExpensive = []
     }
 
     func pauseAll() {
@@ -203,6 +313,7 @@ final class DownloadStore {
     /// `trashFile` also moves a finished download's file to the Trash.
     func remove(_ id: UUID, trashFile: Bool = false) {
         guard let i = index(id) else { return }
+        pausedForNetwork.remove(id)
         if trashFile, items[i].status == .completed, let file = items[i].fileURL {
             _ = destinationFolder(for: items[i])  // makes sure a picked folder's sandbox access is active
             do {
@@ -775,9 +886,9 @@ final class DownloadStore {
     }
 
     private func schedule() {
-        if settings.pauseOnExpensive && onExpensiveNetwork {
+        if waitingForNetwork {
             // Back to the queue so they pick up again once we're on an unmetered network.
-            for i in items.indices where items[i].status == .downloading {
+            for i in items.indices where items[i].status == .downloading && !startedOnExpensive.contains(items[i].id) {
                 stopEngine(at: i)
                 items[i].status = .queued
             }
@@ -933,6 +1044,9 @@ final class DownloadStore {
         // Persist the latest engine progress so a crash or quit resumes from here.
         var snapshot = items
         for i in snapshot.indices { if let e = engines[snapshot[i].id] { snapshot[i].segments = e.snapshot() } }
+        for i in snapshot.indices where snapshot[i].status == .paused && pausedForNetwork.contains(snapshot[i].id) {
+            snapshot[i].status = .queued
+        }
         do {
             try JSONEncoder().encode(snapshot).write(to: Self.listURL, options: .atomic)
         } catch {

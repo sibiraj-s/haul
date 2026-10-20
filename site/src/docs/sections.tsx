@@ -272,7 +272,10 @@ haul --version`}</Pre>
               'Only download on a schedule',
               'Queued downloads start only between the hours you set, such as overnight.',
             ],
-            ['Pause on Personal Hotspot', 'Also respects Low Data Mode.'],
+            [
+              'Pause on Personal Hotspot',
+              'Downloads wait while on Personal Hotspot or Low Data Mode. Click the badge in the toolbar to download anyway.',
+            ],
             ['Retry failed downloads', 'Retries a few times after a dropped connection or server error.'],
             [
               'Proxy',
