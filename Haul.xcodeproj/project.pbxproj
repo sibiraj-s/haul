@@ -10,6 +10,7 @@
 		000000000000000130000010 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 000000000000000150000000 /* Sparkle */; };
 		000000000000000160000010 /* SafariExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 000000000000000000000320 /* SafariExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		000000000000000160000020 /* ShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 000000000000000000000420 /* ShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		000000000000000170000010 /* haul in Embed Command Line Tool */ = {isa = PBXBuildFile; fileRef = 000000000000000000000620 /* haul */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -26,6 +27,13 @@
 			proxyType = 1;
 			remoteGlobalIDString = 000000000000000400000000;
 			remoteInfo = ShareExtension;
+		};
+		000000000000000100000060 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 000000000000000000000000 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 000000000000000500000000;
+			remoteInfo = CommandLineTool;
 		};
 		000000000000000200000020 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -47,6 +55,15 @@
 			);
 			name = "Embed Foundation Extensions";
 		};
+		000000000000000170000000 /* Embed Command Line Tool */ = {
+			isa = PBXCopyFilesBuildPhase;
+			dstPath = Contents/Helpers;
+			dstSubfolder = Wrapper;
+			files = (
+				000000000000000170000010 /* haul in Embed Command Line Tool */,
+			);
+			name = "Embed Command Line Tool";
+		};
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
@@ -54,6 +71,7 @@
 		000000000000000000000220 /* HaulTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HaulTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		000000000000000000000320 /* SafariExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SafariExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		000000000000000000000420 /* ShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		000000000000000000000620 /* haul */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = haul; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -105,6 +123,11 @@
 			path = ExtensionShared;
 			sourceTree = "<group>";
 		};
+		000000000000000000000610 /* CommandLineTool */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = CommandLineTool;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -129,6 +152,11 @@
 			files = (
 			);
 		};
+		000000000000000530000000 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			files = (
+			);
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -140,6 +168,7 @@
 				000000000000000000000310 /* SafariExtension */,
 				000000000000000000000410 /* ShareExtension */,
 				000000000000000000000510 /* ExtensionShared */,
+				000000000000000000000610 /* CommandLineTool */,
 				000000000000000000000020 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -151,6 +180,7 @@
 				000000000000000000000220 /* HaulTests.xctest */,
 				000000000000000000000320 /* SafariExtension.appex */,
 				000000000000000000000420 /* ShareExtension.appex */,
+				000000000000000000000620 /* haul */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -166,12 +196,14 @@
 				000000000000000130000000 /* Frameworks */,
 				000000000000000140000000 /* Resources */,
 				000000000000000160000000 /* Embed Foundation Extensions */,
+				000000000000000170000000 /* Embed Command Line Tool */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 				000000000000000100000010 /* PBXTargetDependency */,
 				000000000000000100000030 /* PBXTargetDependency */,
+				000000000000000100000050 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				000000000000000000000010 /* Haul */,
@@ -243,6 +275,24 @@
 			productReference = 000000000000000000000420 /* ShareExtension.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
+		000000000000000500000000 /* CommandLineTool */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 000000000000000510000000 /* Build configuration list for PBXNativeTarget "CommandLineTool" */;
+			buildPhases = (
+				000000000000000520000000 /* Sources */,
+				000000000000000530000000 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			fileSystemSynchronizedGroups = (
+				000000000000000000000510 /* ExtensionShared */,
+				000000000000000000000610 /* CommandLineTool */,
+			);
+			name = CommandLineTool;
+			productName = haul;
+			productReference = 000000000000000000000620 /* haul */;
+			productType = "com.apple.product-type.tool";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -264,6 +314,9 @@
 						CreatedOnToolsVersion = 27.1;
 					};
 					000000000000000400000000 = {
+						CreatedOnToolsVersion = 27.1;
+					};
+					000000000000000500000000 = {
 						CreatedOnToolsVersion = 27.1;
 					};
 				};
@@ -289,6 +342,7 @@
 				000000000000000200000000 /* HaulTests */,
 				000000000000000300000000 /* SafariExtension */,
 				000000000000000400000000 /* ShareExtension */,
+				000000000000000500000000 /* CommandLineTool */,
 			);
 		};
 /* End PBXProject section */
@@ -337,6 +391,11 @@
 			files = (
 			);
 		};
+		000000000000000520000000 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			files = (
+			);
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -349,6 +408,11 @@
 			isa = PBXTargetDependency;
 			target = 000000000000000400000000 /* ShareExtension */;
 			targetProxy = 000000000000000100000040 /* PBXContainerItemProxy */;
+		};
+		000000000000000100000050 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 000000000000000500000000 /* CommandLineTool */;
+			targetProxy = 000000000000000100000060 /* PBXContainerItemProxy */;
 		};
 		000000000000000200000010 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
@@ -732,6 +796,46 @@
 			};
 			name = Release;
 		};
+		000000000000000511000000 /* Debug configuration for PBXNativeTarget "CommandLineTool" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CREATE_INFOPLIST_SECTION_IN_BINARY = YES;
+				CURRENT_PROJECT_VERSION = "$(MARKETING_VERSION)";
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 0.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(BUNDLE_ID).debug.cli";
+				PRODUCT_NAME = haul;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		000000000000000512000000 /* Release configuration for PBXNativeTarget "CommandLineTool" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CREATE_INFOPLIST_SECTION_IN_BINARY = YES;
+				CURRENT_PROJECT_VERSION = "$(MARKETING_VERSION)";
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 0.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(BUNDLE_ID).cli";
+				PRODUCT_NAME = haul;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -772,6 +876,14 @@
 			buildConfigurations = (
 				000000000000000411000000 /* Debug configuration for PBXNativeTarget "ShareExtension" */,
 				000000000000000412000000 /* Release configuration for PBXNativeTarget "ShareExtension" */,
+			);
+			defaultConfigurationName = Release;
+		};
+		000000000000000510000000 /* Build configuration list for PBXNativeTarget "CommandLineTool" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				000000000000000511000000 /* Debug configuration for PBXNativeTarget "CommandLineTool" */,
+				000000000000000512000000 /* Release configuration for PBXNativeTarget "CommandLineTool" */,
 			);
 			defaultConfigurationName = Release;
 		};

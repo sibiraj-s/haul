@@ -117,7 +117,7 @@ fi
 if [[ -n "$team" ]]; then
     # Notarization rejects code without the hardened runtime or a secure timestamp.
     sparkle="$app/Contents/Frameworks/Sparkle.framework/Versions/B"
-    for code in "$app" "$app"/Contents/PlugIns/*.appex "$sparkle/Autoupdate" "$sparkle/Updater.app" "$sparkle"/XPCServices/*.xpc; do
+    for code in "$app" "$app"/Contents/PlugIns/*.appex "$app/Contents/Helpers/haul" "$sparkle/Autoupdate" "$sparkle/Updater.app" "$sparkle"/XPCServices/*.xpc; do
         details="$(codesign -dvv "$code" 2>&1)"
         grep -q "flags=.*runtime" <<<"$details" || { echo "error: no hardened runtime on $code" >&2; exit 1; }
         grep -q "^Timestamp=" <<<"$details" || { echo "error: no secure timestamp on $code" >&2; exit 1; }

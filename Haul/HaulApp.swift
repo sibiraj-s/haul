@@ -67,6 +67,7 @@ private struct HaulCommands: Commands {
                 ])
             }
             CheckForUpdatesButton()
+            CommandLineToolButton()
         }
         CommandGroup(replacing: .appSettings) {
             Button("Settings…") { SettingsWindow.shared.show() }
@@ -193,6 +194,15 @@ private struct CheckForUpdatesButton: View {
     var body: some View {
         Button("Check for Updates…") { Updater.shared.checkNow() }
             .disabled(Updater.shared.isEnabled && !Updater.shared.canCheck)
+    }
+}
+
+/// A View for the same reason as `CheckForUpdatesButton`: the title follows whether the tool is installed.
+private struct CommandLineToolButton: View {
+    var body: some View {
+        Button(CommandLineInstall.shared.state == .installed ? "Uninstall Command Line Tool…" : "Install Command Line Tool…") {
+            CommandLineInstall.shared.show()
+        }
     }
 }
 
