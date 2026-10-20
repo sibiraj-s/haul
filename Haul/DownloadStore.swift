@@ -19,6 +19,9 @@ final class DownloadStore {
     var updatingLink: UUID?
     /// Links sent from another app (a haul:// link, the Services menu), waiting for the Add panel to take them.
     var incomingLinks: [URL] = []
+    /// What Safari sent with incoming links, kept until they're added. A link that's edited in
+    /// the Add panel no longer matches, so it goes without.
+    @ObservationIgnored var browserContexts: [URL: BrowserContext] = [:]
     private(set) var onExpensiveNetwork = false
 
     /// Set by a view that has access to `openWindow`, so non-view code can bring the main window back.
@@ -145,6 +148,7 @@ final class DownloadStore {
         if replaceExisting { d.replaceExisting = true }
         if extract { d.extract = true }
         if whenDone != .nothing { d.whenDone = whenDone }
+        d.browser = browserContexts.removeValue(forKey: url)
         if let folder {
             d.folderBookmark = folder.bookmark
             d.folderName = folder.url.lastPathComponent
@@ -490,7 +494,8 @@ final class DownloadStore {
     }
 
     /// Opens the Add panel with `links` filled in, for the user to confirm.
-    func requestAdd(_ links: [URL]) {
+    func requestAdd(_ links: [URL], browser: BrowserContext? = nil) {
+        if let browser { for link in links { browserContexts[link] = browser } }
         incomingLinks += links
         updatingLink = nil
         requestAdd()
@@ -516,7 +521,7 @@ final class DownloadStore {
             // A pause and resume while probing starts a new probe; only the latest one may act.
             defer { if probing[id] == token { probing[id] = nil } }
             do {
-                let info = try await Probe.run(d.url)
+                let info = try await Probe.run(d.url, browser: d.browser)
                 guard probing[id] == token, let j = index(id), items[j].status == .downloading else { return }
                 if info.isWebPage && settings.skipWebPages { return fail(j, DownloadError.webPage) }
                 items[j].apply(info)
@@ -534,7 +539,7 @@ final class DownloadStore {
         let d = items[i]
         if let shortfall = diskShortfall(for: d) { return fail(i, DownloadError.diskFull(shortfall)) }
         let engine = SegmentedDownloader(url: d.url, partURL: partURL(id), segments: d.segments,
-                                         ifRange: d.etag ?? d.lastModified, limiter: limiter) { result in
+                                         ifRange: d.etag ?? d.lastModified, browser: d.browser, limiter: limiter) { result in
             Task { @MainActor in DownloadStore.shared.engineFinished(id, result) }
         }
         engines[id] = engine
@@ -606,6 +611,7 @@ final class DownloadStore {
             }
             if settings.recordSource { recordSource(of: dest, url: d.url) }
             items[i].fileURL = dest
+            items[i].browser = nil
             items[i].name = dest.lastPathComponent
         } catch {
             items[i].status = .failed

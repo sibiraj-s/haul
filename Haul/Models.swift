@@ -169,6 +169,9 @@ struct Download: Codable, Identifiable {
     var extractedURL: URL?
     var extractError: String?
     var whenDone: WhenDone?
+    /// What Safari sent with the link (Referer, User-Agent, cookies), when it came from the
+    /// extension. Dropped once the download finishes.
+    var browser: BrowserContext?
 
     /// Live engine state; not persisted.
     var speed: Double = 0
@@ -183,7 +186,7 @@ struct Download: Codable, Identifiable {
     var extracting = false
 
     enum CodingKeys: String, CodingKey {
-        case id, url, name, size, status, connections, resumable, segments, added, finished, error, fileURL, sha256, renamed, etag, lastModified, issue, folderBookmark, folderName, queueOrder, replaceExisting, authRealm, authDigest, extract, extractedURL, extractError, whenDone
+        case id, url, name, size, status, connections, resumable, segments, added, finished, error, fileURL, sha256, renamed, etag, lastModified, issue, folderBookmark, folderName, queueOrder, replaceExisting, authRealm, authDigest, extract, extractedURL, extractError, whenDone, browser
     }
 
     var kind: FileKind { .of(name) }

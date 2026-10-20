@@ -122,7 +122,7 @@ struct AddDownloadPanel: View {
             try? await Task.sleep(for: .milliseconds(400))
             guard !Task.isCancelled else { return }
             do {
-                probe = .ok(try await Probe.run(url))
+                probe = .ok(try await Probe.run(url, browser: store.browserContexts[url]))
             } catch DownloadError.signInRequired(let realm, let digest) {
                 probe = .needsSignIn(realm: realm, digest: digest)
             } catch {
@@ -331,7 +331,7 @@ struct AddDownloadPanel: View {
                     for url in hostURLs {
                         guard !Task.isCancelled else { return }
                         do {
-                            batchInfo[url] = try await Probe.run(url)
+                            batchInfo[url] = try await Probe.run(url, browser: store.browserContexts[url])
                             batchErrors[url] = nil
                         } catch {
                             if !Task.isCancelled { batchErrors[url] = error.localizedDescription }
@@ -397,6 +397,8 @@ struct AddDownloadPanel: View {
 
     private func close() {
         store.showAdd = false
+        // Cookies for links that weren't added shouldn't linger.
+        store.browserContexts = [:]
     }
 
     private func confirm() {

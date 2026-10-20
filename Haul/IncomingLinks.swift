@@ -14,6 +14,14 @@ enum IncomingLinks {
         return items.filter { $0.name == "url" }.compactMap { $0.value.flatMap(AddDownloadPanel.link) }
     }
 
+    /// What Safari sent with the links in a `haul://add` URL (see `BrowserContext`).
+    nonisolated static func browserContext(in url: URL) -> BrowserContext? {
+        guard !links(in: url).isEmpty,
+              let json = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "context" })?.value
+        else { return nil }
+        return BrowserContext.decode(json)
+    }
+
     /// The download links on a pasteboard: copied URLs, and links in selected text.
     static func links(on pasteboard: NSPasteboard) -> [URL] {
         let urls = pasteboard.readObjects(forClasses: [NSURL.self]) as? [URL] ?? []

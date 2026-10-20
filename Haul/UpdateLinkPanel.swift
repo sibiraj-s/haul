@@ -54,7 +54,7 @@ struct UpdateLinkPanel: View {
             try? await Task.sleep(for: .milliseconds(400))
             guard !Task.isCancelled else { return }
             do {
-                probe = .ok(try await Probe.run(url))
+                probe = .ok(try await Probe.run(url, browser: download.browser))
             } catch {
                 if !Task.isCancelled { probe = .failed(error.localizedDescription) }
             }

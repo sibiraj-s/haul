@@ -218,8 +218,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// haul://add links from other apps and browser extensions.
     func application(_ application: NSApplication, open urls: [URL]) {
-        let links = urls.flatMap(IncomingLinks.links)
-        if !links.isEmpty { DownloadStore.shared.requestAdd(links) }
+        for url in urls {
+            let links = IncomingLinks.links(in: url)
+            if !links.isEmpty { DownloadStore.shared.requestAdd(links, browser: IncomingLinks.browserContext(in: url)) }
+        }
     }
 
     /// Keep running in the menu bar after the window closes.

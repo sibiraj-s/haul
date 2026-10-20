@@ -109,10 +109,10 @@ nonisolated enum Probe {
 
     /// Requests the first byte only: a 206 reply tells us both the total size and that
     /// ranged (multi-connection, resumable) downloads will work.
-    static func run(_ url: URL) async throws -> Info {
+    static func run(_ url: URL, browser: BrowserContext? = nil) async throws -> Info {
         for attempt in 1...3 {
             do {
-                return try await once(url)
+                return try await once(url, browser: browser)
             } catch DownloadError.throttled(let wait, let status) {
                 if attempt == 3 { throw DownloadError.http(status) }
                 try await Task.sleep(for: .seconds(wait))
@@ -121,10 +121,13 @@ nonisolated enum Probe {
         throw URLError(.unknown)
     }
 
-    private static func once(_ url: URL) async throws -> Info {
+    private static func once(_ url: URL, browser: BrowserContext?) async throws -> Info {
         var request = URLRequest(url: url, timeoutInterval: 20)
         request.setValue("bytes=0-0", forHTTPHeaderField: "Range")
-        let session = URLSession(configuration: ProxySettings.sessionConfiguration())
+        browser?.apply(to: &request)
+        let config = ProxySettings.sessionConfiguration()
+        browser?.apply(to: config)
+        let session = URLSession(configuration: config)
         defer { session.finishTasksAndInvalidate() }
         let (bytes, response) = try await session.bytes(for: request)
         bytes.task.cancel()
@@ -209,6 +212,7 @@ nonisolated final class SegmentedDownloader: NSObject, URLSessionDataDelegate, @
     private let url: URL
     private let partURL: URL
     private let ifRange: String?
+    private let browser: BrowserContext?
     private let limiter: RateLimiter
     private let completion: @Sendable (Result<Void, Error>) -> Void
 
@@ -233,11 +237,12 @@ nonisolated final class SegmentedDownloader: NSObject, URLSessionDataDelegate, @
 
     /// `ifRange` is the ETag or Last-Modified captured when the download started; ranged
     /// requests carry it so a server whose file has changed answers 200 instead of a mismatched range.
-    init(url: URL, partURL: URL, segments: [Segment], ifRange: String?, limiter: RateLimiter,
+    init(url: URL, partURL: URL, segments: [Segment], ifRange: String?, browser: BrowserContext?, limiter: RateLimiter,
          completion: @escaping @Sendable (Result<Void, Error>) -> Void) {
         self.url = url
         self.partURL = partURL
         self.ifRange = ifRange
+        self.browser = browser
         self.segments = segments
         self.limiter = limiter
         self.completion = completion
@@ -255,6 +260,7 @@ nonisolated final class SegmentedDownloader: NSObject, URLSessionDataDelegate, @
         let config = ProxySettings.sessionConfiguration()
         config.httpMaximumConnectionsPerHost = 32
         config.timeoutIntervalForRequest = 60
+        browser?.apply(to: config)
         session = URLSession(configuration: config, delegate: self, delegateQueue: queue)
         queue.addOperation { [self] in
             do {
@@ -322,6 +328,7 @@ nonisolated final class SegmentedDownloader: NSObject, URLSessionDataDelegate, @
         guard !isStopped, let session else { return }
         let s = snapshot()[index]
         var request = URLRequest(url: url)
+        browser?.apply(to: &request)
         let from = s.start + s.done
         if let end = s.end {
             request.setValue("bytes=\(from)-\(end)", forHTTPHeaderField: "Range")
