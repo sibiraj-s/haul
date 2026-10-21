@@ -17,6 +17,8 @@ jobs:
     runs-on: xcode-27
     timeout-minutes: 30
     env:
+      # Stop xcodebuild from buffering its output when piped, so the log streams live.
+      NSUnbufferedIO: 'YES'
       # No certificates on the runner: sign ad hoc ("Sign to Run Locally").
       XCODEBUILD: xcodebuild -project Haul.xcodeproj -scheme Haul -destination platform=macOS CODE_SIGN_IDENTITY=-
 

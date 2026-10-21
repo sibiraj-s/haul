@@ -92,6 +92,8 @@ xcodebuild=(xcodebuild -project Haul.xcodeproj -scheme Haul -configuration Relea
 
 # xcodebuild warns about every installed simulator whose runtime is missing (common on CI
 # images); xcbeautify drops that noise. Without it, the output goes through unchanged.
+# NSUnbufferedIO stops xcodebuild from buffering its output into the pipe, so it streams.
+export NSUnbufferedIO=YES
 beautify() {
     if command -v xcbeautify >/dev/null; then
         xcbeautify ${GITHUB_ACTIONS:+--renderer github-actions}
