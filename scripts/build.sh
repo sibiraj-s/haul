@@ -90,19 +90,29 @@ settings+=(ARCHS=arm64 CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO MARKETING_VERSION="
 xcodebuild=(xcodebuild -project Haul.xcodeproj -scheme Haul -configuration Release
     -destination 'generic/platform=macOS' -derivedDataPath "$derived" -onlyUsePackageVersionsFromResolvedFile -quiet)
 
+# xcodebuild warns about every installed simulator whose runtime is missing (common on CI
+# images); xcbeautify drops that noise. Without it, the output goes through unchanged.
+beautify() {
+    if command -v xcbeautify >/dev/null; then
+        xcbeautify ${GITHUB_ACTIONS:+--renderer github-actions}
+    else
+        cat
+    fi
+}
+
 echo "==> Building Haul $version ($build_number)${team:+, signed for team $team}"
 rm -rf "$stage" "$dmg" "$appcast" "$archive" "$export_dir" "$out/ExportOptions.plist"
 if [[ -n "$team" ]]; then
     # Exporting re-signs Sparkle's helpers and XPC services for notarization.
-    "${xcodebuild[@]}" -archivePath "$archive" "${settings[@]}" archive
+    "${xcodebuild[@]}" -archivePath "$archive" "${settings[@]}" archive 2>&1 | beautify
     /usr/libexec/PlistBuddy -c "Add :method string developer-id" -c "Add :teamID string $team" \
         -c "Add :signingStyle string manual" -c "Add :signingCertificate string $identity" \
         "$out/ExportOptions.plist" >/dev/null
     xcodebuild -exportArchive -archivePath "$archive" -exportPath "$export_dir" \
-        -exportOptionsPlist "$out/ExportOptions.plist" -quiet
+        -exportOptionsPlist "$out/ExportOptions.plist" -quiet 2>&1 | beautify
     rm "$out/ExportOptions.plist"
 else
-    "${xcodebuild[@]}" "${settings[@]}" build
+    "${xcodebuild[@]}" "${settings[@]}" build 2>&1 | beautify
 fi
 
 echo "==> Verifying"

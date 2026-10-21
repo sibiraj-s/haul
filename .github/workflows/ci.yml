@@ -27,7 +27,7 @@ jobs:
         run: xcodebuild -version
 
       - name: Test
-        run: $XCODEBUILD test
+        run: set -o pipefail && $XCODEBUILD test 2>&1 | xcbeautify --renderer github-actions
 
       - name: Build (Release)
-        run: $XCODEBUILD -configuration Release build
+        run: set -o pipefail && $XCODEBUILD -configuration Release build 2>&1 | xcbeautify --renderer github-actions
