@@ -2,7 +2,7 @@ import AppKit
 import Sparkle
 
 /// Finds, downloads and installs new versions of Haul with Sparkle, from the appcast
-/// attached to the "appcast" GitHub release.
+/// attached to the latest GitHub release.
 @Observable
 final class Updater {
     static let shared = Updater()
