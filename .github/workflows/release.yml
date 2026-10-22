@@ -60,12 +60,17 @@ jobs:
     if: needs.version.outputs.release == 'true'
     runs-on: xcode-27
     timeout-minutes: 60
+    permissions:
+      contents: write
+      id-token: write
     env:
       VERSION: ${{ needs.version.outputs.version }}
       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
       NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
       NOTARY_ISSUER_ID: ${{ secrets.NOTARY_ISSUER_ID }}
       SPARKLE_PUBLIC_KEY: ${{ vars.SPARKLE_PUBLIC_KEY }}
+      CHROME_SERVICE_ACCOUNT: ${{ secrets.CHROME_SERVICE_ACCOUNT }}
+      GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -112,6 +117,19 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # A short-lived token for the Chrome Web Store's service account, through Workload Identity
+      # Federation, so no Google key is stored in the repository's secrets.
+      - name: Sign in to Google Cloud
+        id: google
+        if: env.CHROME_SERVICE_ACCOUNT != ''
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.CHROME_SERVICE_ACCOUNT }}
+          token_format: access_token
+          access_token_scopes: https://www.googleapis.com/auth/chromewebstore
+          create_credentials_file: false
+
       # Only when BrowserExtension/ changed since the previous release; a store whose
       # credentials aren't set is skipped.
       - name: Publish the browser extension
@@ -119,8 +137,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CHROME_PUBLISHER_ID: ${{ secrets.CHROME_PUBLISHER_ID }}
-          CHROME_CLIENT_ID: ${{ secrets.CHROME_CLIENT_ID }}
-          CHROME_CLIENT_SECRET: ${{ secrets.CHROME_CLIENT_SECRET }}
-          CHROME_REFRESH_TOKEN: ${{ secrets.CHROME_REFRESH_TOKEN }}
+          CHROME_ACCESS_TOKEN: ${{ steps.google.outputs.access_token }}
           AMO_JWT_ISSUER: ${{ secrets.AMO_JWT_ISSUER }}
           AMO_JWT_SECRET: ${{ secrets.AMO_JWT_SECRET }}

@@ -1,0 +1,79 @@
+name: Check store credentials
+
+on:
+  workflow_dispatch:
+  # Monthly, so a credential that stopped working shows up before a release needs it.
+  schedule:
+    - cron: '0 6 1 * *'
+
+permissions:
+  contents: read
+
+jobs:
+  chrome:
+    name: Chrome Web Store
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # GitHub's sign-in token, which Google Cloud trusts for the service account.
+      id-token: write
+    env:
+      CHROME_PUBLISHER_ID: ${{ secrets.CHROME_PUBLISHER_ID }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Sign in to Google Cloud
+        id: google
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.CHROME_SERVICE_ACCOUNT }}
+          token_format: access_token
+          access_token_scopes: https://www.googleapis.com/auth/chromewebstore
+          create_credentials_file: false
+
+      # The item's ID comes from the key in the manifest, as in scripts/release/extension.mjs.
+      - name: Read the item's status
+        env:
+          CHROME_ACCESS_TOKEN: ${{ steps.google.outputs.access_token }}
+        run: |
+          id=$(node -p "const { createHash } = require('node:crypto');
+            const { key } = require('./BrowserExtension/manifest.json');
+            const hex = createHash('sha256').update(Buffer.from(key, 'base64')).digest('hex').slice(0, 32);
+            [...hex].map((digit) => String.fromCharCode(97 + parseInt(digit, 16))).join('')")
+          echo "Item: $id"
+          curl --fail-with-body -sS \
+            -H "Authorization: Bearer $CHROME_ACCESS_TOKEN" \
+            "https://chromewebstore.googleapis.com/v2/publishers/$CHROME_PUBLISHER_ID/items/$id:fetchStatus"
+
+  firefox:
+    name: Firefox Add-ons
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # AMO takes a JWT signed with the API secret, as web-ext sign makes it; reads the signed-in
+      # account and the add-on, by its ID in the manifest.
+      - name: Read the account and the add-on
+        env:
+          AMO_JWT_ISSUER: ${{ secrets.AMO_JWT_ISSUER }}
+          AMO_JWT_SECRET: ${{ secrets.AMO_JWT_SECRET }}
+        run: |
+          node --input-type=module -e "
+            import { createHmac, randomUUID } from 'node:crypto';
+            import { readFileSync } from 'node:fs';
+            const encode = (value) => Buffer.from(JSON.stringify(value)).toString('base64url');
+            const now = Math.floor(Date.now() / 1000);
+            const body = encode({ alg: 'HS256', typ: 'JWT' }) + '.' +
+              encode({ iss: process.env.AMO_JWT_ISSUER, jti: randomUUID(), iat: now, exp: now + 60 });
+            const jwt = body + '.' + createHmac('sha256', process.env.AMO_JWT_SECRET).update(body).digest('base64url');
+            const id = JSON.parse(readFileSync('BrowserExtension/manifest.json', 'utf8')).browser_specific_settings.gecko.id;
+            for (const path of ['accounts/profile/', 'addons/addon/' + encodeURIComponent(id) + '/']) {
+              const res = await fetch('https://addons.mozilla.org/api/v5/' + path, { headers: { Authorization: 'JWT ' + jwt } });
+              const json = await res.json();
+              if (!res.ok) throw new Error(res.status + ' ' + path + ': ' + JSON.stringify(json));
+              console.log(path === 'accounts/profile/'
+                ? 'Signed in as ' + json.name
+                : json.slug + ': ' + json.status + ', version ' + json.current_version?.version);
+            }
+          "

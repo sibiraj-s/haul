@@ -8,9 +8,8 @@
 // Environment:
 //   GH_TOKEN                attaches the packages to the release
 //   CHROME_PUBLISHER_ID     Chrome Web Store: the publisher ID (Dashboard → Settings) and an
-//   CHROME_CLIENT_ID        OAuth client with a refresh token for the chromewebstore scope
-//   CHROME_CLIENT_SECRET
-//   CHROME_REFRESH_TOKEN
+//   CHROME_ACCESS_TOKEN     access token for the chromewebstore scope, from the publisher's
+//                           service account (release.yml signs in as it, with no stored key)
 //   AMO_JWT_ISSUER          addons.mozilla.org API key
 //   AMO_JWT_SECRET
 
@@ -50,7 +49,7 @@ const missing = (names) => names.filter((name) => !process.env[name])
 let failed = false
 
 async function publishChrome() {
-  const names = ['CHROME_PUBLISHER_ID', 'CHROME_CLIENT_ID', 'CHROME_CLIENT_SECRET', 'CHROME_REFRESH_TOKEN']
+  const names = ['CHROME_PUBLISHER_ID', 'CHROME_ACCESS_TOKEN']
   if (missing(names).length) return console.log(`Chrome Web Store: skipped, ${missing(names).join(', ')} not set.`)
   const env = process.env
 
@@ -59,18 +58,7 @@ async function publishChrome() {
   const hex = createHash('sha256').update(Buffer.from(key, 'base64')).digest('hex').slice(0, 32)
   const id = [...hex].map((digit) => String.fromCharCode(97 + parseInt(digit, 16))).join('')
 
-  const token = await json(
-    fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      body: new URLSearchParams({
-        client_id: env.CHROME_CLIENT_ID,
-        client_secret: env.CHROME_CLIENT_SECRET,
-        refresh_token: env.CHROME_REFRESH_TOKEN,
-        grant_type: 'refresh_token',
-      }),
-    }),
-  )
-  const headers = { Authorization: `Bearer ${token.access_token}` }
+  const headers = { Authorization: `Bearer ${env.CHROME_ACCESS_TOKEN}` }
   const item = `https://chromewebstore.googleapis.com/v2/publishers/${env.CHROME_PUBLISHER_ID}/items/${id}`
   const upload = `https://chromewebstore.googleapis.com/upload/v2/publishers/${env.CHROME_PUBLISHER_ID}/items/${id}`
 
