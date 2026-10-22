@@ -71,6 +71,65 @@ struct SegmentTests {
     }
 }
 
+struct ProgressBarTests {
+    private func download(_ status: DownloadStatus = .downloading, size: Int64? = 800, segments: [Segment]) -> Download {
+        var d = Download(url: URL(string: "https://example.com/file.zip")!, name: "file.zip", size: size, status: status, connections: 8)
+        d.segments = segments
+        return d
+    }
+
+    @Test func eachBarIsAStretchOfTheFile() {
+        // Two parts: the first half done, the second a quarter of the way.
+        let d = download(segments: [Segment(start: 0, end: 399, done: 400), Segment(start: 400, end: 799, done: 100)])
+        let bars = d.progressBars
+        #expect(bars.count == 8)
+        #expect(bars.map(\.length) == Array(repeating: 100, count: 8))
+        #expect(bars.map(\.fill) == [1, 1, 1, 1, 1, 0, 0, 0])
+    }
+
+    @Test func splitsDontChangeTheBars() {
+        let whole = download(segments: [Segment(start: 0, end: 799, done: 150)]).progressBars
+        // The same bytes, after a split handed the back half to another connection.
+        let split = download(segments: [Segment(start: 0, end: 399, done: 150), Segment(start: 400, end: 799)]).progressBars
+        #expect(whole == split)
+        #expect(whole.map(\.fill) == [1, 0.5, 0, 0, 0, 0, 0, 0])
+    }
+
+    @Test func partsCrossingABarCountInBoth() {
+        let bars = download(segments: [Segment(start: 0, end: 149, done: 0), Segment(start: 150, end: 799, done: 100)]).progressBars
+        #expect(bars.map(\.done) == [0, 50, 50, 0, 0, 0, 0, 0])
+    }
+
+    @Test func barsKnowWhereConnectionsAreWriting() {
+        var d = download(segments: [Segment(start: 0, end: 399, done: 150), Segment(start: 400, end: 799, done: 50)])
+        d.writingAt = [150, 450]
+        #expect(d.progressBars.map(\.active) == [false, true, false, false, true, false, false, false])
+        // Stopped, nothing is being written, whatever the last reading said.
+        d.status = .paused
+        #expect(d.progressBars.allSatisfy { !$0.active })
+    }
+
+    @Test(arguments: [DownloadStatus.paused, .failed, .queued])
+    func savedProgressShowsWhileStopped(_ status: DownloadStatus) {
+        let bars = download(status, segments: [Segment(start: 0, end: 799, done: 200)]).progressBars
+        #expect(bars.map(\.fill) == [1, 1, 0, 0, 0, 0, 0, 0])
+    }
+
+    @Test func tinyFilesGetABarPerByte() {
+        let bars = download(size: 5, segments: [Segment(start: 0, end: 4)]).progressBars
+        #expect(bars.count == 5)
+        #expect(bars.allSatisfy { $0.length == 1 && $0.fill == 0 })
+    }
+
+    @Test func finishedOrUnknownSize() {
+        #expect(download(.completed, segments: []).progressBars.allSatisfy { $0.fill == 1 })
+        #expect(download(.completed, size: nil, segments: []).progressBars.allSatisfy { $0.fill == 1 })
+        let streaming = download(size: nil, segments: [Segment(start: 0, end: nil, done: 500)]).progressBars
+        #expect(streaming.count == 8)
+        #expect(streaming.allSatisfy { $0.fill == 0 })
+    }
+}
+
 struct DownloadModelTests {
     private func download(size: Int64?, done: Int64, status: DownloadStatus = .downloading) -> Download {
         var d = Download(url: URL(string: "https://example.com/file.zip")!, name: "file.zip", size: size, status: status, connections: 1)

@@ -2,13 +2,15 @@ import SwiftUI
 
 struct InspectorView: View {
     @Environment(DownloadStore.self) private var store
+    /// The progress bar under the pointer, whose details replace the status lines.
+    @State private var hoveredBar: Int?
 
     var body: some View {
         if let d = store.selected {
             ScrollView {
                 VStack(spacing: 0) {
                     header(d)
-                    connections(d)
+                    progress(d)
                     details(d)
                     actions(d)
                 }
@@ -46,11 +48,13 @@ struct InspectorView: View {
         }
     }
 
-    /// One bar per segment in file order, filled from the bottom to its progress. Splits
-    /// for idle connections add segments, so there can be more bars than connections.
-    private func connections(_ d: Download) -> some View {
-        let segs = d.segments.isEmpty ? [Segment(start: 0, end: nil)] : d.segments
-        let segColor: Color = switch d.status {
+    /// The file in equal parts, one bar per connection set, each filled to how much of it is
+    /// downloaded. Hovering a bar swaps the status lines for that part's details, which keep
+    /// updating (a tooltip wouldn't); without a size there are none to show.
+    private func progress(_ d: Download) -> some View {
+        let bars = d.progressBars
+        let hovered = bars.first { $0.id == hoveredBar }
+        let color: Color = switch d.status {
         case .completed: Theme.green
         case .failed: Theme.red
         case .downloading: Theme.accent
@@ -63,37 +67,67 @@ struct InspectorView: View {
                 Text(d.progress, format: .percent.precision(.fractionLength(1))).foregroundStyle(Theme.text2)
             }
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(minimum: 0), spacing: 3), count: 8), spacing: 3) {
-                // Keyed by start, so a split inserting a segment doesn't hand its neighbours' bars to others.
-                ForEach(Array(segs.enumerated()), id: \.element.start) { i, s in
-                    let fraction = d.status == .completed ? 1 : s.fraction
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(Theme.track)
-                        .overlay(alignment: .bottom) {
-                            GeometryReader { geo in
-                                Rectangle()
-                                    .fill(segColor)
-                                    .frame(height: geo.size.height * fraction)
-                                    .frame(maxHeight: .infinity, alignment: .bottom)
-                                    .animation(.linear(duration: 0.5), value: fraction)
-                            }
+                ForEach(bars) { bar in
+                    ZStack(alignment: .bottom) {
+                        Rectangle().fill(Theme.track)
+                        Rectangle()
+                            .fill(color)
+                            .frame(height: Self.barHeight * bar.fill)
+                            .animation(.linear(duration: 0.5), value: bar.fill)
+                    }
+                    .frame(height: Self.barHeight)
+                    .clipShape(RoundedRectangle(cornerRadius: 4))
+                    .overlay {
+                        if bar.id == hoveredBar {
+                            RoundedRectangle(cornerRadius: 4).strokeBorder(Theme.text2.opacity(0.6), lineWidth: 1)
                         }
-                        .clipShape(RoundedRectangle(cornerRadius: 4))
-                        .frame(height: 22)
-                        .help("Part \(i + 1): \(formatBytes(s.done)) of \(s.length.map(formatBytes) ?? "?")")
+                    }
+                    .onHover { inside in
+                        guard d.size != nil else { return }
+                        if inside { hoveredBar = bar.id } else if hoveredBar == bar.id { hoveredBar = nil }
+                    }
                 }
             }
-            HStack {
-                Text(connectionLine(d, total: d.connectionLimit))
-                    .help(d.serverLimit.map { "The server allows only \($0) connection\($0 == 1 ? "" : "s") at a time; the other segments wait their turn." } ?? "")
-                Spacer()
-                Text(speedLine(d))
+            // Two rows, so neither side wraps: connections beside speed, then time left, or the
+            // hovered part's details.
+            VStack(spacing: 3) {
+                if let bar = hovered {
+                    row("Part \(bar.id + 1) of \(bars.count)", partState(d, bar))
+                    row("\(formatBytes(bar.done)) of \(formatBytes(bar.length))", "")
+                } else {
+                    row(connectionLine(d, total: d.connectionLimit), speedLine(d))
+                    row("", timeLine(d) ?? "")
+                }
             }
+            .lineLimit(1)
             .foregroundStyle(Theme.text2)
         }
         .font(.system(size: 11))
         .monospacedDigit()
         .padding(.horizontal, 16)
         .padding(.bottom, 14)
+        // The pointer may still rest on a bar when the selection changes from the keyboard.
+        .onChange(of: d.id) { hoveredBar = nil }
+    }
+
+    private static let barHeight: CGFloat = 22
+
+    /// How far a part is, and while downloading, whether a connection is on it right now.
+    private func partState(_ d: Download, _ bar: ProgressBar) -> String {
+        if bar.fill >= 1 { return "Done" }
+        // Rounded down, so only a finished part reads 100%.
+        let percent = bar.fill.formatted(.percent.precision(.fractionLength(0)).rounded(rule: .down))
+        guard d.status == .downloading else { return percent }
+        return "\(percent) · \(bar.active ? "Downloading" : "Idle")"
+    }
+
+    /// One status row; an empty side still takes up its line, so hovering doesn't shift the layout.
+    private func row(_ leading: String, _ trailing: String) -> some View {
+        HStack {
+            Text(leading.isEmpty ? " " : leading)
+            Spacer()
+            Text(trailing)
+        }
     }
 
     private func connectionLine(_ d: Download, total: Int) -> String {
@@ -105,8 +139,12 @@ struct InspectorView: View {
     }
 
     private func speedLine(_ d: Download) -> String {
-        if d.status == .downloading && d.speed > 0 { return "\(formatBytes(d.speed))/s · \(formatDuration(d.remainingTime)) left" }
+        if d.status == .downloading && d.speed > 0 { return "\(formatBytes(d.speed))/s" }
         return d.status == .completed ? "Done" : "—"
+    }
+
+    private func timeLine(_ d: Download) -> String? {
+        d.status == .downloading && d.speed > 0 ? "\(formatDuration(d.remainingTime)) left" : nil
     }
 
     private func details(_ d: Download) -> some View {

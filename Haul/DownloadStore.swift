@@ -708,6 +708,7 @@ final class DownloadStore {
         probing[id] = nil
         items[i].speed = 0
         items[i].liveConnections = 0
+        items[i].writingAt = []
         dirty = true
     }
 
@@ -716,6 +717,7 @@ final class DownloadStore {
         items[i].segments = engine.snapshot()
         items[i].speed = 0
         items[i].liveConnections = 0
+        items[i].writingAt = []
         dirty = true
         switch result {
         case .failure(let error):
@@ -879,7 +881,7 @@ final class DownloadStore {
             let id = items[i].id
             guard let engine = engines[id] else { continue }
             items[i].segments = engine.snapshot()
-            (items[i].liveConnections, items[i].serverLimit) = engine.connectionState()
+            (items[i].liveConnections, items[i].serverLimit, items[i].writingAt) = engine.connectionState()
             let bytes = items[i].received
             var window = samples[id, default: []]
             window.append((bytes, now))

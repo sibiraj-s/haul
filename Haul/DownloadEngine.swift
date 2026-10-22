@@ -226,6 +226,8 @@ nonisolated final class SegmentedDownloader: NSObject, URLSessionDataDelegate, @
     private var stopped = false
     private var live = 0
     private var serverLimit: Int?
+    /// Segments a connection the server accepted is downloading.
+    private var writing: Set<Int> = []
 
     // Only touched on `queue`.
     private let queue = OperationQueue()
@@ -238,6 +240,9 @@ nonisolated final class SegmentedDownloader: NSObject, URLSessionDataDelegate, @
     private var rejected: [Int: Error] = [:]
     private var attempts: [Int: Int] = [:]
     private var throttles: [Int: Int] = [:]
+    /// Refused parts already sent again on the next free connection; refused once more, they wait
+    /// out Retry-After until the server accepts them.
+    private var retriedEarly: Set<Int> = []
     /// Tasks the server answered with the range asked for; only these are split.
     private var confirmed: Set<Int> = []
     /// The range end each bounded task asked for, to tell when a split has moved its segment's end.
@@ -270,8 +275,15 @@ nonisolated final class SegmentedDownloader: NSObject, URLSessionDataDelegate, @
 
     private var current: [Segment] { lock.withLock { segments } }
 
-    /// Connections currently open, and the cap the server imposed (if it pushed back).
-    func connectionState() -> (live: Int, serverLimit: Int?) { lock.withLock { (live, serverLimit) } }
+    /// Connections currently open, the cap the server imposed (if it pushed back), and the
+    /// file offset each accepted connection will write next.
+    func connectionState() -> (live: Int, serverLimit: Int?, writingAt: [Int64]) {
+        lock.withLock {
+            // A finished segment's connection may not have closed yet; its next byte belongs to the next segment.
+            let at = writing.filter { !segments[$0].isComplete }.map { segments[$0].start + segments[$0].done }
+            return (live, serverLimit, at)
+        }
+    }
 
     func start() {
         let config = configuration
@@ -398,6 +410,8 @@ nonisolated final class SegmentedDownloader: NSObject, URLSessionDataDelegate, @
             }
             if http.statusCode == 206 { confirmed.insert(dataTask.taskIdentifier) }
         }
+        retriedEarly.remove(index)
+        lock.withLock { _ = writing.insert(index) }
         completionHandler(.allow)
         // Free slots may now be filled from this connection's segment.
         pump()
@@ -431,6 +445,7 @@ nonisolated final class SegmentedDownloader: NSObject, URLSessionDataDelegate, @
 
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
         guard let index = tasks.removeValue(forKey: task.taskIdentifier), !isStopped else { return }
+        lock.withLock { _ = writing.remove(index) }
         let rejection = rejected.removeValue(forKey: task.taskIdentifier)
         confirmed.remove(task.taskIdentifier)
         requestedEnds[task.taskIdentifier] = nil
@@ -445,15 +460,25 @@ nonisolated final class SegmentedDownloader: NSObject, URLSessionDataDelegate, @
         if current[index].isComplete { return }
 
         if case .throttled(let wait, let status) = rejection as? DownloadError {
-            // The connections still open are what this server allows.
-            maxParallel = max(1, min(maxParallel, tasks.count))
-            lock.withLock { serverLimit = maxParallel }
+            // A first refusal shows what the server allows: the connections still open. A part refused
+            // again was only retrying a slot, so it leaves the limit alone.
+            if !retriedEarly.contains(index) && throttles[index] == nil {
+                maxParallel = max(1, min(maxParallel, tasks.count))
+                lock.withLock { serverLimit = maxParallel }
+            }
+            // The server usually has room again as soon as one of the open connections ends, well before
+            // Retry-After, so the part takes the next connection to free up. Refused again straight after,
+            // the server is limiting how often rather than how many, so until it's accepted the part
+            // waits Retry-After out.
+            if !tasks.isEmpty && retriedEarly.insert(index).inserted { return pending.append(index) }
             let count = (throttles[index] ?? 0) + 1
             throttles[index] = count
-            // Keep waiting for a slot for up to ~10 minutes before giving up.
+            // Give up after 120 waits, however long the server's Retry-After makes them.
             guard count <= 120 else { return finish(.failure(DownloadError.http(status))) }
             return requeue(index, after: wait)
         }
+        // Anything but a refusal, and the part may take the next free connection if it's refused later.
+        retriedEarly.remove(index)
         if let rejection { return finish(.failure(rejection)) }
 
         let attempt = (attempts[index] ?? 0) + 1

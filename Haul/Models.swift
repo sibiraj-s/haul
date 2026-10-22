@@ -151,6 +151,16 @@ nonisolated struct Segment: Codable, Hashable, Sendable {
     }
 }
 
+/// A bar in the inspector: one equal part of the file, filled to how much of it is downloaded.
+struct ProgressBar: Identifiable, Equatable {
+    var id: Int
+    var done: Int64
+    var length: Int64
+    /// A connection is downloading somewhere in this part.
+    var active = false
+    var fill: Double { length > 0 ? min(1, Double(done) / Double(length)) : 1 }
+}
+
 struct Download: Codable, Identifiable {
     var id = UUID()
     var url: URL
@@ -199,6 +209,8 @@ struct Download: Codable, Identifiable {
     var speed: Double = 0
     var liveConnections = 0
     var serverLimit: Int?
+    /// The file offset each downloading connection writes next.
+    var writingAt: [Int64] = []
     /// When the current run started; used to pick which downloads go back to the queue
     /// when the simultaneous-download limit is lowered.
     var startedAt: Date?
@@ -223,6 +235,27 @@ struct Download: Codable, Identifiable {
         if status == .completed { return 1 }
         guard let size, size > 0 else { return 0 }
         return min(1, Double(received) / Double(size))
+    }
+
+    /// The file cut into one equal part per connection set, each filled to how much of it is
+    /// downloaded. They're fixed by position, so splits and the server's connection limit never
+    /// change the bars, and downloaded bytes never leave one, so no bar ever empties.
+    var progressBars: [ProgressBar] {
+        let count = Int64(max(1, connections))
+        guard let size, size > 0 else {
+            // Without a size there's nothing to place the bytes against.
+            return (0..<Int(count)).map { ProgressBar(id: $0, done: status == .completed ? 1 : 0, length: 1) }
+        }
+        // At least a byte each, for files smaller than the number of connections.
+        let parts = min(count, size)
+        return (0..<parts).map { k in
+            let from = size * k / parts, to = size * (k + 1) / parts
+            let done = status == .completed ? to - from : segments.reduce(0) { sum, s in
+                sum + max(0, min(to, s.start + s.done) - max(from, s.start))
+            }
+            let active = status == .downloading && writingAt.contains { from <= $0 && $0 < to }
+            return ProgressBar(id: Int(k), done: done, length: to - from, active: active)
+        }
     }
 
     var remainingTime: TimeInterval? {
