@@ -68,6 +68,9 @@ jobs:
       SPARKLE_PUBLIC_KEY: ${{ vars.SPARKLE_PUBLIC_KEY }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          # The tags, so the extension step can tell what changed since the previous release.
+          fetch-depth: 0
 
       - uses: actions/setup-node@v7
         with:
@@ -108,3 +111,16 @@ jobs:
         run: scripts/release/publish.sh "$VERSION"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Only when BrowserExtension/ changed since the previous release; a store whose
+      # credentials aren't set is skipped.
+      - name: Publish the browser extension
+        run: node scripts/release/extension.mjs "$VERSION"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CHROME_PUBLISHER_ID: ${{ secrets.CHROME_PUBLISHER_ID }}
+          CHROME_CLIENT_ID: ${{ secrets.CHROME_CLIENT_ID }}
+          CHROME_CLIENT_SECRET: ${{ secrets.CHROME_CLIENT_SECRET }}
+          CHROME_REFRESH_TOKEN: ${{ secrets.CHROME_REFRESH_TOKEN }}
+          AMO_JWT_ISSUER: ${{ secrets.AMO_JWT_ISSUER }}
+          AMO_JWT_SECRET: ${{ secrets.AMO_JWT_SECRET }}

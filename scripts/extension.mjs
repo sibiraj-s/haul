@@ -3,8 +3,10 @@
 //   build/extension/chrome/     build/haul-chrome-<version>.zip    Chrome Web Store
 //   build/extension/firefox/    build/haul-firefox-<version>.zip   addons.mozilla.org
 //
-// The version is the one in BrowserExtension/manifest.json. BrowserExtension/ itself loads in
-// both browsers as it is; each package drops what only the other browser uses.
+// The extension takes Haul's version (package.json), so each one matches the release it was
+// built from; the version in BrowserExtension/manifest.json only shows when it's loaded
+// unpacked. BrowserExtension/ itself loads in both browsers as it is; each package drops what
+// only the other browser uses.
 //
 //   npm run extension
 
@@ -14,7 +16,8 @@ import { join } from 'node:path'
 
 process.chdir(join(import.meta.dirname, '..'))
 const source = 'BrowserExtension'
-const manifest = JSON.parse(readFileSync(join(source, 'manifest.json'), 'utf8'))
+const { version } = JSON.parse(readFileSync('package.json', 'utf8'))
+const manifest = { ...JSON.parse(readFileSync(join(source, 'manifest.json'), 'utf8')), version }
 const files = readdirSync(source).filter((file) => file === 'background.js' || file.endsWith('.png'))
 
 const packages = {
@@ -35,9 +38,9 @@ for (const [browser, prepare] of Object.entries(packages)) {
   for (const file of files) copyFileSync(join(source, file), join(dir, file))
   writeFileSync(join(dir, 'manifest.json'), JSON.stringify(prepare(manifest), null, 2) + '\n')
 
-  const zip = `build/haul-${browser}-${manifest.version}.zip`
+  const zip = `build/haul-${browser}-${version}.zip`
   rmSync(zip, { force: true })
   // From inside the folder, so manifest.json is at the zip's root as the stores require.
-  execFileSync('zip', ['-qrX', join('..', '..', `haul-${browser}-${manifest.version}.zip`), '.'], { cwd: dir })
+  execFileSync('zip', ['-qrX', join('..', '..', `haul-${browser}-${version}.zip`), '.'], { cwd: dir })
   console.log(zip)
 }

@@ -17,6 +17,7 @@
     "commitlint-config-non-conventional": "^1.0.1",
     "husky": "^9.1.7",
     "lint-staged": "^17.6.0",
-    "oxfmt": "^0.71.0"
+    "oxfmt": "^0.71.0",
+    "web-ext": "10.7.0"
   }
 }
