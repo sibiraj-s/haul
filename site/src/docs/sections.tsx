@@ -172,14 +172,12 @@ export const sections: { id: string; title: string; body: ReactNode }[] = [
         <Ol>
           <li>Open Haul once, so it can tell your browsers where to find it.</li>
           <li>
-            In Chrome and other Chromium browsers, open <Code>chrome://extensions</Code>, turn on{' '}
-            <Ui>Developer mode</Ui>, click <Ui>Load unpacked</Ui> and choose the <Code>BrowserExtension</Code> folder.
-            In Firefox, open <Code>about:debugging</Code>, click <Ui>This Firefox → Load Temporary Add-on…</Ui> and
-            choose its <Code>manifest.json</Code>.
+            Install it from the <A href={links.chromeExtension}>Chrome Web Store</A> (also for Brave, Edge, Vivaldi and
+            Arc) or from <A href={links.firefoxExtension}>Firefox Add-ons</A>.
           </li>
           <li>
-            In Firefox, allow the extension on all sites in <Ui>Add-ons → Haul → Permissions</Ui>, so it can send the
-            site's cookies.
+            In Firefox, allow the extension on all sites in <Ui>Add-ons → Haul → Permissions</Ui>, so it can take
+            downloads before Firefox asks what to do with them and send the site's cookies.
           </li>
         </Ol>
         <P>
