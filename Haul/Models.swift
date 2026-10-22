@@ -116,16 +116,38 @@ nonisolated struct Segment: Codable, Hashable, Sendable {
         return length > 0 ? min(1, Double(done) / Double(length)) : 1
     }
 
+    /// How many connections a file is fetched over: one when the server can't serve ranges or
+    /// the size is unknown, and few enough for tiny files that each segment is at least 256 KB.
+    static func connections(size: Int64?, requested: Int, resumable: Bool) -> Int {
+        guard resumable, let size else { return 1 }
+        return Int(max(1, min(Int64(requested), size / (256 * 1024))))
+    }
+
     static func split(size: Int64?, connections: Int, resumable: Bool) -> [Segment] {
         guard let size else { return [Segment(start: 0, end: nil)] }
-        // Don't bother splitting tiny files: keep each segment at least 256 KB.
-        let count = resumable ? max(1, min(Int64(connections), size / (256 * 1024))) : 1
+        let count = Int64(Segment.connections(size: size, requested: connections, resumable: resumable))
         let chunk = size / count
         return (0..<count).map { i in
             let start = i * chunk
             let end = i == count - 1 ? size - 1 : start + chunk - 1
             return Segment(start: start, end: end)
         }
+    }
+
+    /// Halves what's left of the running segment with the most to go, so a free
+    /// connection can take the back half. Returns the new segment's index, or nil
+    /// when no running segment has at least twice `minimum` bytes left.
+    static func splitLargest(_ segments: inout [Segment], running: some Sequence<Int>, minimum: Int64) -> Int? {
+        let remaining = running.compactMap { i -> (index: Int, offset: Int64, end: Int64)? in
+            segments[i].end.map { (i, segments[i].start + segments[i].done, $0) }
+        }
+        guard let largest = remaining.max(by: { $0.end - $0.offset < $1.end - $1.offset }) else { return nil }
+        let left = largest.end - largest.offset + 1
+        guard left >= minimum * 2 else { return nil }
+        let mid = largest.offset + left / 2
+        segments[largest.index].end = mid - 1
+        segments.append(Segment(start: mid, end: largest.end))
+        return segments.count - 1
     }
 }
 
@@ -193,6 +215,9 @@ struct Download: Codable, Identifiable {
     var host: String { url.host() ?? url.absoluteString }
     var ext: String { String(fileExtension(name).uppercased().prefix(4)) }
     var received: Int64 { segments.reduce(0) { $0 + $1.done } }
+
+    /// The most connections the engine opens at once for this download.
+    var connectionLimit: Int { Segment.connections(size: size, requested: connections, resumable: resumable) }
 
     var progress: Double {
         if status == .completed { return 1 }

@@ -32,6 +32,34 @@ struct SegmentTests {
         #expect(!segments[0].isComplete)
     }
 
+    @Test func splitsTheRunningSegmentWithMostLeft() {
+        var segments = [
+            Segment(start: 0, end: 99, done: 100),
+            Segment(start: 100, end: 199, done: 90),
+            Segment(start: 200, end: 299, done: 20),
+        ]
+        let added = Segment.splitLargest(&segments, running: [1, 2], minimum: 10)
+        #expect(added == 3)
+        // 80 bytes left from 220: the running connection keeps 220–259, the new segment takes 260–299.
+        #expect(segments[2].end == 259)
+        #expect(segments[3] == Segment(start: 260, end: 299))
+        #expect(segments.compactMap(\.length).reduce(0, +) == 300)
+    }
+
+    @Test func leavesSmallOrUnboundedSegmentsAlone() {
+        var segments = [Segment(start: 0, end: 99, done: 85), Segment(start: 100, end: nil, done: 50)]
+        #expect(Segment.splitLargest(&segments, running: [0, 1], minimum: 10) == nil)
+        #expect(segments.count == 2)
+        #expect(segments[0].end == 99)
+    }
+
+    @Test(arguments: [Int64(300 * 1024), 1024 * 1024, 100 * 1024 * 1024, -1], [true, false])
+    func connectionsMatchTheSegmentsSplitInto(_ size: Int64, _ resumable: Bool) {
+        let size = size < 0 ? nil : size
+        let connections = Segment.connections(size: size, requested: 8, resumable: resumable)
+        #expect(connections == Segment.split(size: size, connections: 8, resumable: resumable).count)
+    }
+
     @Test func completionAndFraction() {
         var s = Segment(start: 100, end: 199)
         #expect(s.length == 100)

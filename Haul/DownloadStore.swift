@@ -669,7 +669,7 @@ final class DownloadStore {
         let d = items[i]
         if let shortfall = diskShortfall(for: d) { return fail(i, DownloadError.diskFull(shortfall)) }
         let engine = SegmentedDownloader(url: d.url, partURL: partURL(id), segments: d.segments,
-                                         ifRange: d.etag ?? d.lastModified, browser: d.browser, limiter: limiter) { result in
+                                         connections: d.connectionLimit, ifRange: d.etag ?? d.lastModified, browser: d.browser, limiter: limiter) { result in
             Task { @MainActor in DownloadStore.shared.engineFinished(id, result) }
         }
         engines[id] = engine

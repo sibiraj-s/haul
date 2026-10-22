@@ -46,7 +46,8 @@ struct InspectorView: View {
         }
     }
 
-    /// One bar per connection, filled from the bottom to that segment's progress.
+    /// One bar per segment in file order, filled from the bottom to its progress. Splits
+    /// for idle connections add segments, so there can be more bars than connections.
     private func connections(_ d: Download) -> some View {
         let segs = d.segments.isEmpty ? [Segment(start: 0, end: nil)] : d.segments
         let segColor: Color = switch d.status {
@@ -62,8 +63,8 @@ struct InspectorView: View {
                 Text(d.progress, format: .percent.precision(.fractionLength(1))).foregroundStyle(Theme.text2)
             }
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(minimum: 0), spacing: 3), count: 8), spacing: 3) {
-                ForEach(segs.indices, id: \.self) { i in
-                    let s = segs[i]
+                // Keyed by start, so a split inserting a segment doesn't hand its neighbours' bars to others.
+                ForEach(Array(segs.enumerated()), id: \.element.start) { i, s in
                     let fraction = d.status == .completed ? 1 : s.fraction
                     RoundedRectangle(cornerRadius: 4)
                         .fill(Theme.track)
@@ -78,11 +79,11 @@ struct InspectorView: View {
                         }
                         .clipShape(RoundedRectangle(cornerRadius: 4))
                         .frame(height: 22)
-                        .help("Connection \(i + 1): \(formatBytes(s.done)) of \(s.length.map(formatBytes) ?? "?")")
+                        .help("Part \(i + 1): \(formatBytes(s.done)) of \(s.length.map(formatBytes) ?? "?")")
                 }
             }
             HStack {
-                Text(connectionLine(d, total: segs.count))
+                Text(connectionLine(d, total: d.connectionLimit))
                     .help(d.serverLimit.map { "The server allows only \($0) connection\($0 == 1 ? "" : "s") at a time; the other segments wait their turn." } ?? "")
                 Spacer()
                 Text(speedLine(d))
