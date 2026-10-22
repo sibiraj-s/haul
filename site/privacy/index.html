@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Haul Privacy Policy</title>
+    <meta
+      name="description"
+      content="What the Haul app and its Safari, Chrome and Firefox extensions do with your data: links and cookies stay on your Mac, and nothing is collected."
+    />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  </head>
+  <body class="min-h-screen bg-bg font-sans text-text">
+    <div id="header"></div>
+    <main
+      class="mx-auto max-w-180 px-6 pt-12 text-[15px] leading-relaxed text-pretty text-text2 [&_a]:text-accent [&_a:hover]:underline [&_h2]:mt-10 [&_h2]:mb-3 [&_h2]:font-display [&_h2]:text-[22px] [&_h2]:font-bold [&_h2]:tracking-[-.02em] [&_h2]:text-text [&_li]:mt-1.5 [&_p]:mt-3 [&_strong]:font-semibold [&_strong]:text-text [&_ul]:mt-3 [&_ul]:list-disc [&_ul]:pl-5"
+    >
+      <h1 class="font-display text-[clamp(32px,5vw,44px)] leading-[1.1] font-bold tracking-[-.03em] text-text">
+        Privacy Policy
+      </h1>
+      <p>Last updated: 22 October 2026</p>
+
+      <p>
+        Haul is a download manager for macOS. This policy covers the Haul app and its extensions for Safari, Chrome and
+        Firefox (and other browsers that install from the Chrome Web Store). In short:
+        <strong>Haul doesn't collect any data.</strong> What the extensions read goes only to the Haul app on your own
+        Mac, which uses it to download the file you asked for. Nothing is sent to the developer or anyone else.
+      </p>
+
+      <h2>What the browser extensions handle</h2>
+      <p>
+        When you start a download in your browser, or choose <strong>Download with Haul</strong> for a link, the
+        extension reads:
+      </p>
+      <ul>
+        <li><strong>The link</strong> to the file, and the address of the page it was on.</li>
+        <li><strong>Your browser's User-Agent</strong>, the text browsers send to identify themselves.</li>
+        <li>
+          <strong>The site's cookies for that link</strong>, so files that need you to be signed in download as they
+          would in your browser.
+        </li>
+      </ul>
+      <p>
+        These are read only for the file being downloaded, at the moment you download it. From private and incognito
+        windows, cookies are never read; only the link, the page and the User-Agent are sent.
+      </p>
+
+      <h2>Where that data goes</h2>
+      <p>
+        The extension hands it to the Haul app on the same Mac, through the browser's messaging with installed apps
+        (native messaging), or in Safari, the extension that ships inside Haul. Haul then downloads the file from the
+        site it came from, sending the cookies, User-Agent and page address only to that site, as your browser would.
+      </p>
+      <p>
+        The extensions make no network requests of their own. Nothing is sent to the developer or to any third party,
+        and nothing is sold, shared or used for advertising, tracking or any other purpose.
+      </p>
+
+      <h2>What's stored</h2>
+      <ul>
+        <li>The Chrome and Firefox extension stores one setting: whether it captures downloads.</li>
+        <li>
+          Haul keeps its list of downloads (links, file names, where they were saved and their progress) on your Mac,
+          and you can remove them at any time.
+        </li>
+        <li>
+          Cookies from the browser are saved with their download until it finishes, so it can resume if Haul quits, and
+          are deleted as soon as it's done. They're used for that download only, never added to Haul's own cookies and
+          never used for anything else.
+        </li>
+      </ul>
+
+      <h2>What the app connects to</h2>
+      <ul>
+        <li>The sites you download from, and any proxy you set up in Haul or macOS.</li>
+        <li>
+          GitHub, once a day, to check for updates to Haul (you can turn this off in Settings). The check sends only
+          what any web request does, such as your IP address, and Haul's version.
+        </li>
+      </ul>
+      <p>Haul has no analytics, crash reporting, advertising or tracking.</p>
+
+      <h2>This website</h2>
+      <p>
+        haul.sibiraj.dev is hosted on GitHub Pages and served through Cloudflare, which see the requests your browser
+        makes to the site, as any web host does. The home page asks GitHub's API for the latest release, to link to it.
+        The site uses no cookies, analytics or tracking of its own.
+      </p>
+
+      <h2>Changes and contact</h2>
+      <p>
+        If this policy changes, the new version will be posted here with a new date. Haul is open source, so you can
+        read exactly what it does in its <a href="https://github.com/sibiraj-s/haul">source code</a>. Questions are
+        welcome as an <a href="https://github.com/sibiraj-s/haul/issues">issue on GitHub</a>.
+      </p>
+    </main>
+    <div id="footer"></div>
+    <script type="module" src="/src/legal.tsx"></script>
+  </body>
+</html>

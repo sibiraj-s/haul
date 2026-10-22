@@ -73,7 +73,7 @@ export function Docs() {
           ))}
         </main>
       </div>
-      <Footer />
+      <Footer home="../" />
     </div>
   )
 }
