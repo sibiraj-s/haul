@@ -5,7 +5,13 @@
   "version": "1.0.0",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAt3cKyeJ0Py9j9NoAMBm9/iq+ILhd0OH6Et8ls43gMN5yNmXmp95JOChvurfdXe2xH+yiSNV/Fu4tZq7xxm6FQAAI1fYpGdCDRCEtHJnYGDkaUJqboO9z8wWXd7clJfovgw5ob0y2lX/YMQDJbRW1KRwtsRK3AgCx0WWKd3QOVKdQl8++R/aGgdRBBWu9eCmic0F/++WirP2Ivj4u1XQ4CT1uUPB16JFMbSoVF1iL3o3iyRrJalzTCmZ3mDfo1qVj5czFt/VocdrlCW7+qX/rbGftop0TNBsZOyCLPTHveXfnGDprupLi65oJAbfaVCvO8LHXfa+zcnc+kx2Ux/9uJQIDAQAB",
   "browser_specific_settings": {
-    "gecko": { "id": "haul@sibiraj.dev", "strict_min_version": "128.0" }
+    "gecko": {
+      "id": "haul@sibiraj.dev",
+      "strict_min_version": "140.0",
+      "data_collection_permissions": {
+        "required": ["authenticationInfo", "browsingActivity"]
+      }
+    }
   },
   "icons": {
     "16": "icon-16.png",
@@ -16,7 +22,10 @@
   },
   "action": {
     "default_title": "Haul",
-    "default_icon": { "16": "icon-16.png", "32": "icon-32.png" }
+    "default_icon": {
+      "16": "icon-16.png",
+      "32": "icon-32.png"
+    }
   },
   "background": {
     "service_worker": "background.js",
