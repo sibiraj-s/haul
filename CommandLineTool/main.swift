@@ -26,6 +26,10 @@ let app = (Bundle.main.executableURL ?? URL(fileURLWithPath: CommandLine.argumen
     .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 
 let arguments = Array(CommandLine.arguments.dropFirst())
+if NativeHost.isBrowser(arguments) {
+    await NativeHost.run(app: app)
+    exit(EX_OK)
+}
 switch arguments.first {
 case "-h", "--help", "help":
     print(usage, terminator: "")

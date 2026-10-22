@@ -1,0 +1,35 @@
+{
+  "manifest_version": 3,
+  "name": "Haul",
+  "description": "Download with Haul, the macOS download manager: captures the browser's downloads and adds Download with Haul to the menu for links.",
+  "version": "1.0.0",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAt3cKyeJ0Py9j9NoAMBm9/iq+ILhd0OH6Et8ls43gMN5yNmXmp95JOChvurfdXe2xH+yiSNV/Fu4tZq7xxm6FQAAI1fYpGdCDRCEtHJnYGDkaUJqboO9z8wWXd7clJfovgw5ob0y2lX/YMQDJbRW1KRwtsRK3AgCx0WWKd3QOVKdQl8++R/aGgdRBBWu9eCmic0F/++WirP2Ivj4u1XQ4CT1uUPB16JFMbSoVF1iL3o3iyRrJalzTCmZ3mDfo1qVj5czFt/VocdrlCW7+qX/rbGftop0TNBsZOyCLPTHveXfnGDprupLi65oJAbfaVCvO8LHXfa+zcnc+kx2Ux/9uJQIDAQAB",
+  "browser_specific_settings": {
+    "gecko": { "id": "haul@sibiraj.dev", "strict_min_version": "128.0" }
+  },
+  "icons": {
+    "16": "icon-16.png",
+    "32": "icon-32.png",
+    "48": "icon-48.png",
+    "96": "icon-96.png",
+    "128": "icon-128.png"
+  },
+  "action": {
+    "default_title": "Haul",
+    "default_icon": { "16": "icon-16.png", "32": "icon-32.png" }
+  },
+  "background": {
+    "service_worker": "background.js",
+    "scripts": ["background.js"]
+  },
+  "permissions": [
+    "contextMenus",
+    "downloads",
+    "nativeMessaging",
+    "cookies",
+    "storage",
+    "webRequest",
+    "webRequestBlocking"
+  ],
+  "host_permissions": ["<all_urls>"]
+}

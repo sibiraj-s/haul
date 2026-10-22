@@ -195,6 +195,7 @@
 				000000000000000120000000 /* Sources */,
 				000000000000000130000000 /* Frameworks */,
 				000000000000000140000000 /* Resources */,
+				000000000000000180000000 /* Chrome Extension ID */,
 				000000000000000160000000 /* Embed Foundation Extensions */,
 				000000000000000170000000 /* Embed Command Line Tool */,
 			);
@@ -369,6 +370,29 @@
 			);
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		000000000000000180000000 /* Chrome Extension ID */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/BrowserExtension/manifest.json",
+			);
+			name = "Chrome Extension ID";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/ChromeExtensionID.txt",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# The Chrome extension's ID, which BrowserHosts allows: the first 32 hex digits of the\n# SHA-256 of the key in its manifest, spelled with a-p.\nset -e\nkey=\"$(plutil -extract key raw -o - \"$SCRIPT_INPUT_FILE_0\")\"\nprintf '%s' \"$key\" | base64 -D | shasum -a 256 | cut -c1-32 | tr '0-9a-f' 'a-p' > \"$SCRIPT_OUTPUT_FILE_0\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		000000000000000120000000 /* Sources */ = {

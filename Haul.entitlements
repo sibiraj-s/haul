@@ -22,6 +22,15 @@
 		<string>/.zshrc</string>
 		<string>/.bash_profile</string>
 		<string>/.config/fish/config.fish</string>
+		<!-- Where browsers look for native messaging hosts, for the Chrome and Firefox
+		     extension (BrowserHosts). -->
+		<string>/Library/Application Support/Google/Chrome/NativeMessagingHosts/</string>
+		<string>/Library/Application Support/Chromium/NativeMessagingHosts/</string>
+		<string>/Library/Application Support/BraveSoftware/Brave-Browser/NativeMessagingHosts/</string>
+		<string>/Library/Application Support/Microsoft Edge/NativeMessagingHosts/</string>
+		<string>/Library/Application Support/Vivaldi/NativeMessagingHosts/</string>
+		<string>/Library/Application Support/Arc/User Data/NativeMessagingHosts/</string>
+		<string>/Library/Application Support/Mozilla/NativeMessagingHosts/</string>
 	</array>
 	<key>com.apple.security.temporary-exception.files.home-relative-path.read-only</key>
 	<array>

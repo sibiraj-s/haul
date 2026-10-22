@@ -160,6 +160,37 @@ export const sections: { id: string; title: string; body: ReactNode }[] = [
     ),
   },
   {
+    id: 'chrome-firefox',
+    title: 'Chrome and Firefox extension',
+    body: (
+      <>
+        <P>
+          The extension hands downloads you start in Chrome, Firefox, Brave, Edge, Vivaldi or Arc to Haul, which opens
+          them in the Add panel instead of the browser downloading them. It also adds <Ui>Download with Haul</Ui> to the
+          menu for links and <Ui>Download Links with Haul</Ui> for selected text.
+        </P>
+        <Ol>
+          <li>Open Haul once, so it can tell your browsers where to find it.</li>
+          <li>
+            In Chrome and other Chromium browsers, open <Code>chrome://extensions</Code>, turn on{' '}
+            <Ui>Developer mode</Ui>, click <Ui>Load unpacked</Ui> and choose the <Code>BrowserExtension</Code> folder.
+            In Firefox, open <Code>about:debugging</Code>, click <Ui>This Firefox → Load Temporary Add-on…</Ui> and
+            choose its <Code>manifest.json</Code>.
+          </li>
+          <li>
+            In Firefox, allow the extension on all sites in <Ui>Add-ons → Haul → Permissions</Ui>, so it can send the
+            site's cookies.
+          </li>
+        </Ol>
+        <P>
+          Click the Haul button in the toolbar to stop or start capturing downloads; it shows <Ui>off</Ui> while it
+          isn't. If Haul can't be reached, the browser downloads the file as usual. Like the Safari extension, it sends
+          the site's cookies, the browser's User-Agent and the page as the Referer, and nothing from private windows.
+        </P>
+      </>
+    ),
+  },
+  {
     id: 'other-apps',
     title: 'From other apps',
     body: (

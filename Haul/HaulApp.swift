@@ -214,6 +214,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if settings.notify || settings.notifyAdded || settings.notifyFailed || settings.dockProgress { Notifier.requestAuthorization() }
         Updater.shared.start()
         NSApp.servicesProvider = ServiceProvider.shared
+        Task.detached(priority: .utility) { BrowserHosts.install() }
     }
 
     /// haul://add links from other apps and browser extensions.

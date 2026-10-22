@@ -8,7 +8,8 @@
     "changeset": "changeset",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
-    "prepare": "husky"
+    "prepare": "husky",
+    "extension": "node scripts/extension.mjs"
   },
   "devDependencies": {
     "@changesets/cli": "^3.0.3",
