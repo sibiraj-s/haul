@@ -14,9 +14,45 @@
     <meta property="og:type" content="website" />
     <meta property="og:image" content="https://raw.githubusercontent.com/sibiraj-s/haul/master/screenshot.png" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <!-- Hides the text in #root before the first paint when JavaScript runs, so it doesn't flash
+         before the app replaces it; readers without JavaScript still get it. -->
+    <script>
+      document.documentElement.classList.add('js')
+    </script>
+    <style>
+      .js .no-js-only {
+        display: none;
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <!-- What the page says, for readers that don't run JavaScript (search engines, link
+         checkers, store reviews); the app replaces it when it loads. -->
+    <div id="root">
+      <main class="no-js-only mx-auto max-w-180 px-6 py-16 font-sans text-[15px] leading-relaxed text-text2">
+        <h1 class="font-display text-[40px] font-bold text-text">Haul — a download manager for macOS</h1>
+        <p class="mt-3">
+          Haul is a free, open-source download manager for Mac. It downloads files faster over several connections at
+          once, pauses and resumes them (even after a restart), and keeps them in a queue you can reorder.
+        </p>
+        <ul class="mt-4 list-disc pl-5">
+          <li>Multi-connection downloads with pause and resume</li>
+          <li>A queue with a limit on simultaneous downloads, a speed limit and a nightly schedule</li>
+          <li>Proxies, automatic retries, and fresh links for expired downloads</li>
+          <li>Sorting into folders by kind, SHA-256 checksums, and extracting archives when they finish</li>
+          <li>Progress in the menu bar and Dock, and notifications</li>
+          <li>
+            Extensions for Safari, Chrome and Firefox that hand your browser's downloads to Haul, plus the Share menu,
+            Services and a <code>haul</code> command
+          </li>
+        </ul>
+        <p class="mt-4">
+          <a href="https://github.com/sibiraj-s/haul/releases/latest">Download Haul</a> · <a href="docs/">Docs</a> ·
+          <a href="privacy/">Privacy Policy</a> · <a href="terms/">Terms of Use</a> ·
+          <a href="https://github.com/sibiraj-s/haul">Source code</a>
+        </p>
+      </main>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
