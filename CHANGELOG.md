@@ -1,5 +1,15 @@
 # haul
 
+## 1.4.0
+
+### Minor Changes
+
+- 2542bc3: Finish downloads sooner: when a connection finishes its part, it takes over half of the part with the most left, so every connection keeps downloading until the end instead of waiting on the slowest one. Parts with less than 8 MB left aren't split, and downloads never use more connections than you set
+
+### Patch Changes
+
+- 155f244: Improved connections details bars, shows accurate progress and state and fixed line wraps. Downloads no longer stall when a server limits connections: a part the server turns away takes the next connection that frees up, instead of every connection sitting idle until the server's retry time
+
 ## 1.3.1
 
 ### Patch Changes
