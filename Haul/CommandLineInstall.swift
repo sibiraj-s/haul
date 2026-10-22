@@ -21,7 +21,7 @@ final class CommandLineInstall {
     private(set) var state = State.notInstalled
 
     /// The real home folder; inside the sandbox, NSHomeDirectory() is the app's container.
-    static let home = URL(filePath: String(cString: getpwuid(getuid()).pointee.pw_dir), directoryHint: .isDirectory)
+    nonisolated static let home = URL(filePath: String(cString: getpwuid(getuid()).pointee.pw_dir), directoryHint: .isDirectory)
     static let folder = home.appending(path: ".local/bin", directoryHint: .isDirectory)
     static let link = folder.appending(path: "haul")
 
@@ -48,11 +48,11 @@ final class CommandLineInstall {
         return destination.hasSuffix(".app/Contents/Helpers/haul") ? .otherHaul(destination) : .taken
     }
 
-    static func tool(in app: URL) -> URL { app.appending(path: "Contents/Helpers/haul") }
+    nonisolated static func tool(in app: URL) -> URL { app.appending(path: "Contents/Helpers/haul") }
 
     /// Running from the disk image, or from where macOS runs a quarantined app it hasn't
     /// moved (App Translocation): a link there breaks once it's ejected or relaunched.
-    static func isTemporary(_ app: URL) -> Bool {
+    nonisolated static func isTemporary(_ app: URL) -> Bool {
         app.path.hasPrefix("/Volumes/") || app.path.contains("/AppTranslocation/")
     }
 
