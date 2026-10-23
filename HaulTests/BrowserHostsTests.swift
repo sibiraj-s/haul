@@ -46,5 +46,6 @@ struct BrowserHostsTests {
         let key = try #require((manifest["key"] as? String).flatMap { Data(base64Encoded: $0) })
         let id = SHA256.hash(data: key).prefix(16).flatMap { [$0 >> 4, $0 & 0xF] }.map { String(UnicodeScalar($0 + 97)) }.joined()
         #expect(BrowserHosts.chromeExtension == "chrome-extension://\(id)/")
+        #expect(BrowserHosts.chromeWebStore.lastPathComponent == id)
     }
 }

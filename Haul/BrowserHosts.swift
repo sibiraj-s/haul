@@ -18,22 +18,30 @@ nonisolated enum BrowserHosts {
         .flatMap { $0.count == 32 ? "chrome-extension://\($0)/" : nil }
     static let firefoxExtension = "haul@sibiraj.dev"
 
+    /// Where the extension is installed from: Chromium browsers all take the Chrome Web Store's.
+    static let chromeWebStore = URL(string: "https://chromewebstore.google.com/detail/dhpcpomodjoajhnpnbnobdngljjilfge")!
+    static let firefoxAddons = URL(string: "https://addons.mozilla.org/firefox/addon/haul-downloader/")!
+
     struct Browser: Equatable {
+        let name: String
+        /// The app's bundle identifier, to find whether it's installed.
+        let bundleIdentifier: String
         /// The browser's own folder, relative to ~/Library/Application Support.
         let folder: String
         let isFirefox: Bool
 
         var hostsFolder: String { folder + "/NativeMessagingHosts" }
+        var store: URL { isFirefox ? firefoxAddons : chromeWebStore }
     }
 
     static let browsers = [
-        Browser(folder: "Google/Chrome", isFirefox: false),
-        Browser(folder: "Chromium", isFirefox: false),
-        Browser(folder: "BraveSoftware/Brave-Browser", isFirefox: false),
-        Browser(folder: "Microsoft Edge", isFirefox: false),
-        Browser(folder: "Vivaldi", isFirefox: false),
-        Browser(folder: "Arc/User Data", isFirefox: false),
-        Browser(folder: "Mozilla", isFirefox: true),
+        Browser(name: "Google Chrome", bundleIdentifier: "com.google.Chrome", folder: "Google/Chrome", isFirefox: false),
+        Browser(name: "Chromium", bundleIdentifier: "org.chromium.Chromium", folder: "Chromium", isFirefox: false),
+        Browser(name: "Brave", bundleIdentifier: "com.brave.Browser", folder: "BraveSoftware/Brave-Browser", isFirefox: false),
+        Browser(name: "Microsoft Edge", bundleIdentifier: "com.microsoft.edgemac", folder: "Microsoft Edge", isFirefox: false),
+        Browser(name: "Vivaldi", bundleIdentifier: "com.vivaldi.Vivaldi", folder: "Vivaldi", isFirefox: false),
+        Browser(name: "Arc", bundleIdentifier: "company.thebrowser.Browser", folder: "Arc/User Data", isFirefox: false),
+        Browser(name: "Firefox", bundleIdentifier: "org.mozilla.firefox", folder: "Mozilla", isFirefox: true),
     ]
 
     /// Nil for a Chromium browser when the build has no extension ID.

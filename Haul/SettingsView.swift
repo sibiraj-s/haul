@@ -3,7 +3,8 @@ import SwiftUI
 
 struct SettingsView: View {
     enum Pane: String, CaseIterable {
-        case general = "General", downloads = "Downloads", network = "Network", notifications = "Notifications", about = "About"
+        case general = "General", downloads = "Downloads", network = "Network", notifications = "Notifications",
+             extensions = "Extensions", about = "About"
 
         var symbol: String {
             switch self {
@@ -11,6 +12,7 @@ struct SettingsView: View {
             case .downloads: "arrow.down.to.line"
             case .network: "globe"
             case .notifications: "bell"
+            case .extensions: "puzzlepiece.extension"
             case .about: "info.circle"
             }
         }
@@ -62,6 +64,7 @@ struct SettingsView: View {
                 case .downloads: DownloadSettings()
                 case .network: NetworkSettings()
                 case .notifications: NotificationSettings()
+                case .extensions: ExtensionSettings()
                 case .about: AboutSettings()
                 }
             }
@@ -147,7 +150,6 @@ private struct GeneralSettings: View {
                 DesignSwitch(isOn: Binding(get: { settings.launchAtLogin }, set: { settings.setLaunchAtLogin($0) }))
             }
         }
-        DesignGroup { SafariExtensionRow() }
         DesignGroup {
             SettingRow(title: "Remove finished downloads from list", caption: "Only clears the list. Files stay where they were saved.") {
                 HStack(spacing: 8) {
@@ -190,6 +192,62 @@ private struct GeneralSettings: View {
     }
 }
 
+/// Haul's extension in each browser that's installed: Safari's ships inside Haul and is turned on
+/// in Safari's settings; the others come from their store.
+private struct ExtensionSettings: View {
+    private let browsers = BrowserHosts.browsers.compactMap { browser in
+        NSWorkspace.shared.urlForApplication(withBundleIdentifier: browser.bundleIdentifier).map { (browser, $0) }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Haul's extension adds “Download with Haul” to the menu for links. In browsers other than Safari, it also sends the downloads you start to Haul.")
+                .font(.system(size: 12))
+                .foregroundStyle(Theme.text2)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 12)
+            DesignGroup {
+                SafariExtensionRow()
+                ForEach(browsers, id: \.0.bundleIdentifier) { browser, app in
+                    BrowserRow(name: browser.name, app: app) {
+                        // "Google Chrome" → "Chrome", "Microsoft Edge" → "Edge".
+                        PillButton(title: "Add to " + (browser.name.split(separator: " ").last ?? ""), height: 24, fontSize: 12) {
+                            // In that browser, which is where the extension gets added.
+                            NSWorkspace.shared.open([browser.store], withApplicationAt: app, configuration: .init())
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// A browser's icon and name, and its control.
+private struct BrowserRow<Control: View>: View {
+    let name: String
+    let app: URL?
+    var caption: String?
+    @ViewBuilder let control: Control
+
+    var body: some View {
+        HStack(spacing: 10) {
+            if let app {
+                Image(nsImage: NSWorkspace.shared.icon(forFile: app.path)).resizable().frame(width: 28, height: 28)
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(name)
+                if let caption {
+                    Text(caption).font(.system(size: 11)).foregroundStyle(Theme.text2)
+                }
+            }
+            Spacer()
+            control
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+    }
+}
+
 /// Whether the Safari extension that ships inside Haul is turned on, with a button to Safari's
 /// settings, where it's turned on.
 private struct SafariExtensionRow: View {
@@ -197,9 +255,8 @@ private struct SafariExtensionRow: View {
     @State private var enabled: Bool?
 
     var body: some View {
-        SettingRow(title: "Safari extension",
-                   caption: enabled == true ? "“Download with Haul” is in Safari's menu for links."
-                       : "Adds “Download with Haul” to Safari's menu for links.") {
+        BrowserRow(name: "Safari", app: NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.Safari"),
+                   caption: enabled == true ? "Turned on" : "Turned off") {
             PillButton(title: enabled == true ? "Safari Settings…" : "Turn On in Safari…", height: 24, fontSize: 12) {
                 SFSafariApplication.showPreferencesForExtension(withIdentifier: Self.identifier)
             }
