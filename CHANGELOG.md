@@ -1,5 +1,13 @@
 # haul
 
+## 1.5.0
+
+### Minor Changes
+
+- 5e26bef: Add a Chrome and Firefox extension (also Brave, Edge, Vivaldi and Arc): downloads you start in the browser open in Haul instead, signed in with the browser's cookies, and links get Download with Haul in their menu. Click its toolbar button to stop capturing downloads. Also fixes a faint line across the arrow in the app icon on macOS 26 and in the Safari extension's icon
+- c77c525: Add an Extensions pane to Settings: the Safari extension, now moved from General, and a link to the Chrome Web Store or Firefox Add-ons for each browser you have installed, which opens in that browser
+- f8962be: Add downloads remotely: a password-protected page to paste links into and to pause, resume or remove downloads, and an API for curl and scripts, turned on in the new Remote pane in Settings. It's served on this Mac or to your network, and a tunnel such as cloudflared can make it reachable from anywhere
+
 ## 1.4.0
 
 ### Minor Changes
