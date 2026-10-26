@@ -25,6 +25,9 @@
 			</array>
 		</dict>
 	</array>
+	<!-- Shown if macOS asks before the remote downloads page is opened to the network (RemoteServer). -->
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Haul serves its remote downloads page to devices on your network, when you turn it on in Settings.</string>
 	<!-- "Download with Haul" in the Services menu for selected links. An NSRequiredContext,
 	     even an empty one, makes macOS show the service without enabling it in Settings first. -->
 	<key>NSServices</key>

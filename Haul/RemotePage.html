@@ -1,0 +1,465 @@
+<!doctype html>
+<!-- Haul's remote downloads page, served by RemoteServer at /. It posts the links to /add on
+     the same server, with the password as a bearer token. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="robots" content="noindex">
+<title>Haul</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-5 -5 34 34'%3E%3Crect x='-5' y='-5' width='34' height='34' rx='8.5' fill='%230a7aff'/%3E%3Cpath d='M12 4v10.5M7.3 10L12 14.7 16.7 10M5 19h14' fill='none' stroke='%23fff' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<style>
+  :root {
+    --accent: #0a7aff;
+    --bg: #f5f5f7;
+    --card: #fff;
+    --text: #1d1d1f;
+    --text2: rgba(0, 0, 0, 0.56);
+    --text3: rgba(0, 0, 0, 0.32);
+    --sep: rgba(0, 0, 0, 0.08);
+    --field: rgba(0, 0, 0, 0.035);
+    --fieldB: rgba(0, 0, 0, 0.1);
+    --green: #1f9d4c;
+    --red: #e0383e;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 32px rgba(0, 0, 0, 0.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --accent: #2b8cff;
+      --bg: #161618;
+      --card: #1f1f22;
+      --text: #f5f5f7;
+      --text2: rgba(255, 255, 255, 0.6);
+      --text3: rgba(255, 255, 255, 0.3);
+      --sep: rgba(255, 255, 255, 0.08);
+      --field: rgba(255, 255, 255, 0.04);
+      --fieldB: rgba(255, 255, 255, 0.1);
+      --green: #3ccf6e;
+      --red: #ff5a5f;
+      --shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.08), 0 8px 32px rgba(0, 0, 0, 0.4);
+    }
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: max(10vh, 24px) 16px 40px;
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  main { width: 100%; max-width: 520px; }
+  header { display: flex; align-items: center; gap: 12px; margin: 0 4px 20px; }
+  header svg { width: 40px; height: 40px; flex: none; border-radius: 10px; }
+  h1 { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.01em; }
+  header p { margin: 0; color: var(--text2); font-size: 13px; }
+  .card { background: var(--card); border-radius: 16px; box-shadow: var(--shadow); padding: 18px; }
+  label { display: block; font-size: 13px; font-weight: 500; color: var(--text2); margin: 0 2px 6px; }
+  textarea, input[type=password] {
+    width: 100%;
+    font: inherit;
+    color: var(--text);
+    background: var(--field);
+    border: 1px solid var(--fieldB);
+    border-radius: 10px;
+    padding: 10px 12px;
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  textarea { min-height: 132px; resize: vertical; font-size: 14px; font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+  textarea::placeholder, input::placeholder { color: var(--text3); }
+  textarea:focus, input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 8px; min-height: 22px; }
+  .hint { font-size: 12.5px; color: var(--text3); }
+  .link { background: none; border: 0; padding: 0; font: inherit; font-size: 12.5px; color: var(--accent); cursor: pointer; }
+  .link:hover { text-decoration: underline; }
+  .check { display: flex; align-items: center; gap: 7px; margin-top: 8px; font-size: 13px; color: var(--text2); cursor: pointer; }
+  .check input { accent-color: var(--accent); margin: 0; }
+  button.primary {
+    width: 100%;
+    margin-top: 18px;
+    height: 44px;
+    border: 0;
+    border-radius: 11px;
+    background: var(--accent);
+    color: #fff;
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    transition: filter 0.15s, opacity 0.15s, transform 0.05s;
+  }
+  button.primary:hover { filter: brightness(1.08); }
+  button.primary:active { transform: scale(0.99); }
+  button.primary:disabled { opacity: 0.4; cursor: default; filter: none; transform: none; }
+  .status { margin-top: 14px; font-size: 13.5px; text-align: center; min-height: 20px; }
+  .status.ok { color: var(--green); }
+  .status.error { color: var(--red); }
+  .footer { text-align: center; margin-top: 22px; }
+  h2 { font-size: 13px; font-weight: 600; color: var(--text2); margin: 26px 6px 8px; display: flex; justify-content: space-between; }
+  h2 span { font-weight: 400; color: var(--text3); }
+  .list { padding: 4px 0; }
+  .list:empty::after { content: "No downloads yet."; display: block; padding: 14px 18px; color: var(--text3); font-size: 13.5px; }
+  .item { display: flex; align-items: center; gap: 12px; padding: 11px 14px 11px 18px; }
+  .item + .item { border-top: 1px solid var(--sep); }
+  .item .info { flex: 1; min-width: 0; }
+  .item .name { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .item .meta { font-size: 12px; color: var(--text2); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+  .item .meta.failed { color: var(--red); }
+  .bar { height: 4px; border-radius: 2px; background: var(--fieldB); margin-top: 7px; overflow: hidden; }
+  .bar > div { height: 100%; background: var(--accent); border-radius: 2px; transition: width 0.4s; }
+  .item.paused .bar > div, .item.queued .bar > div { background: var(--text3); }
+  .item.failed .bar > div { background: var(--red); }
+  .actions { display: flex; gap: 4px; flex: none; }
+  .icon {
+    width: 30px; height: 30px; border-radius: 50%; border: 0; padding: 0;
+    display: grid; place-items: center; cursor: pointer;
+    background: transparent; color: var(--text2);
+  }
+  .icon:hover { background: var(--field); color: var(--text); }
+  .icon:disabled { opacity: 0.4; cursor: default; }
+  .icon svg { width: 15px; height: 15px; }
+  details { margin-top: 18px; }
+  summary { cursor: pointer; color: var(--text2); font-size: 13px; margin: 0 4px; list-style: none; display: flex; align-items: center; gap: 6px; }
+  summary::-webkit-details-marker { display: none; }
+  summary::before { content: "›"; display: inline-block; transition: transform 0.15s; font-size: 16px; line-height: 1; }
+  details[open] summary::before { transform: rotate(90deg); }
+  .code { position: relative; margin-top: 10px; }
+  pre {
+    margin: 0;
+    padding: 12px 14px;
+    padding-right: 64px;
+    border-radius: 12px;
+    background: var(--card);
+    box-shadow: var(--shadow);
+    font: 12.5px/1.55 ui-monospace, "SF Mono", Menlo, monospace;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+  .copy {
+    position: absolute; top: 8px; right: 8px;
+    border: 1px solid var(--fieldB); background: var(--field); color: var(--text2);
+    border-radius: 7px; font: inherit; font-size: 12px; padding: 3px 9px; cursor: pointer;
+  }
+  .copy:hover { color: var(--text); }
+  .note { font-size: 12.5px; color: var(--text3); margin: 10px 4px 0; }
+  .note code { font: 11.5px ui-monospace, "SF Mono", Menlo, monospace; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <svg viewBox="-5 -5 34 34" aria-hidden="true"><rect x="-5" y="-5" width="34" height="34" rx="8.5" fill="#0a7aff"/><path d="M12 4v10.5M7.3 10L12 14.7 16.7 10M5 19h14" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <div>
+      <h1>Send to Haul</h1>
+      <p id="subtitle">Links you add here start downloading on the Mac.</p>
+    </div>
+  </header>
+
+  <form class="card" id="signin" autocomplete="on" hidden>
+    <label for="password">Password</label>
+    <input type="password" id="password" name="password" placeholder="From Haul's Settings › Remote" autocomplete="current-password" required>
+    <label class="check"><input type="checkbox" id="remember" checked> Remember on this device</label>
+    <button type="submit" class="primary" id="continue">Continue</button>
+    <div class="status" id="signin-status" role="status" aria-live="polite"></div>
+  </form>
+
+  <div id="app" hidden>
+    <form class="card" id="form" autocomplete="off">
+      <label for="links">Links</label>
+      <textarea id="links" placeholder="https://example.com/file.zip" spellcheck="false" autocapitalize="off"></textarea>
+      <div class="row">
+        <span class="hint" id="count">Paste one or more links.</span>
+        <button type="button" class="link" id="paste" hidden>Paste</button>
+      </div>
+      <button type="submit" class="primary" id="submit" disabled>Download</button>
+      <div class="status" id="status" role="status" aria-live="polite"></div>
+    </form>
+
+    <h2>Downloads <span id="summary"></span></h2>
+    <div class="card list" id="downloads"></div>
+
+    <details>
+      <summary>Use from the command line</summary>
+      <div class="code">
+        <pre id="curl"></pre>
+        <button type="button" class="copy" data-copy="curl">Copy</button>
+      </div>
+      <div class="code">
+        <pre id="curl-json"></pre>
+        <button type="button" class="copy" data-copy="curl-json">Copy</button>
+      </div>
+      <p class="note">Any text with links in it works as the body. The reply is JSON with how many were added.
+        <code>GET /downloads</code> lists the downloads; <code>POST /downloads/ID/pause</code> or <code>/resume</code> and
+        <code>DELETE /downloads/ID</code> act on one.</p>
+    </details>
+
+    <p class="footer"><button type="button" class="link" id="signout">Sign out</button></p>
+  </div>
+</main>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const key = "haul.password";
+  // Remembered on the device, or only until the tab closes.
+  const password = {
+    get() {
+      try { return localStorage.getItem(key) || sessionStorage.getItem(key) || ""; } catch { return ""; }
+    },
+    set(value, remember) {
+      try { (remember ? localStorage : sessionStorage).setItem(key, value); } catch {}
+    },
+    clear() {
+      try { localStorage.removeItem(key); sessionStorage.removeItem(key); } catch {}
+    },
+  };
+
+  const say = (id, text, kind) => {
+    $(id).textContent = text;
+    $(id).className = `status ${kind || ""}`;
+  };
+
+  const show = (signedIn) => {
+    $("signin").hidden = signedIn;
+    $("app").hidden = !signedIn;
+    (signedIn ? $("links") : $("password")).focus();
+  };
+
+  const signOut = (message) => {
+    password.clear();
+    $("password").value = "";
+    say("signin-status", message || "", message ? "error" : "");
+    show(false);
+  };
+
+  const post = (path, secret, body) => fetch(path, {
+    method: "POST",
+    headers: { "Authorization": `Bearer ${secret}`, "Content-Type": "text/plain" },
+    body,
+  });
+
+  // MARK: Sign in
+
+  $("signin").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const secret = $("password").value;
+    if (!secret) return;
+    $("continue").disabled = true;
+    say("signin-status", "Checking…");
+    try {
+      const response = await post("/auth", secret, "");
+      const reply = await response.json().catch(() => ({}));
+      if (!response.ok) return say("signin-status", response.status === 401 ? "Wrong password." : reply.error || `Something went wrong (${response.status}).`, "error");
+      password.set(secret, $("remember").checked);
+      say("signin-status", "");
+      show(true);
+      refresh();
+    } catch {
+      say("signin-status", "Couldn't reach Haul. Is it still running?", "error");
+    } finally {
+      $("continue").disabled = false;
+    }
+  });
+
+  $("signout").addEventListener("click", () => signOut());
+
+  // MARK: Links
+
+  // Like Haul's Add panel: http(s) links among whitespace-separated words, without repeats.
+  const links = () => [...new Set($("links").value.split(/[\s,<>"']+/).filter((w) => /^https?:\/\/[^\/\s]+/i.test(w)))];
+
+  const update = () => {
+    const n = links().length;
+    $("count").textContent = n === 0 ? "Paste one or more links." : n === 1 ? "1 link" : `${n} links`;
+    $("submit").disabled = n === 0;
+  };
+
+  $("links").addEventListener("input", () => { update(); say("status", ""); });
+
+  if (navigator.clipboard && navigator.clipboard.readText) {
+    $("paste").hidden = false;
+    $("paste").addEventListener("click", async () => {
+      try {
+        const text = await navigator.clipboard.readText();
+        const area = $("links");
+        area.value = area.value.trim() ? `${area.value.trim()}\n${text}` : text;
+        update();
+      } catch {
+        say("status", "Couldn't read the clipboard. Paste with the keyboard instead.", "error");
+      }
+    });
+  }
+
+  $("form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    $("submit").disabled = true;
+    say("status", "Sending…");
+    try {
+      const response = await post("/add", password.get(), links().join("\n"));
+      const reply = await response.json().catch(() => ({}));
+      if (response.status === 401) return signOut("The password has changed. Enter the new one.");
+      if (!response.ok) return say("status", reply.error || `Something went wrong (${response.status}).`, "error");
+      const { added = 0, skipped = 0 } = reply;
+      const parts = [];
+      if (added) parts.push(added === 1 ? "Added 1 download." : `Added ${added} downloads.`);
+      if (skipped) parts.push(skipped === 1 ? "1 was already in Haul." : `${skipped} were already in Haul.`);
+      say("status", parts.join(" ") || "Nothing to add.", "ok");
+      if (added) $("links").value = "";
+      refresh();
+    } catch {
+      say("status", "Couldn't reach Haul. Is it still running?", "error");
+    } finally {
+      update();
+    }
+  });
+
+  // MARK: Command line
+
+  const origin = location.origin;
+  $("curl").textContent = `curl -u :PASSWORD -d 'https://example.com/file.zip' ${origin}/add`;
+  $("curl-json").textContent = `curl -u :PASSWORD -H 'Content-Type: application/json' \\\n  -d '{"urls": ["https://example.com/a.zip", "https://example.com/b.iso"]}' \\\n  ${origin}/add`;
+  document.querySelectorAll(".copy").forEach((button) => {
+    button.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText($(button.dataset.copy).textContent);
+        button.textContent = "Copied";
+      } catch {
+        getSelection().selectAllChildren($(button.dataset.copy));
+        button.textContent = "Select";
+      }
+      setTimeout(() => { button.textContent = "Copy"; }, 1500);
+    });
+  });
+
+  // MARK: Downloads
+
+  const icons = {
+    pause: '<svg viewBox="0 0 16 16" fill="currentColor"><rect x="3.5" y="2.5" width="3" height="11" rx="1"/><rect x="9.5" y="2.5" width="3" height="11" rx="1"/></svg>',
+    resume: '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M4.5 2.9v10.2a.8.8 0 0 0 1.2.7l8.4-5.1a.8.8 0 0 0 0-1.4L5.7 2.2a.8.8 0 0 0-1.2.7z"/></svg>',
+    remove: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>',
+  };
+
+  const bytes = (n) => {
+    if (n == null) return "";
+    const units = ["bytes", "KB", "MB", "GB", "TB"];
+    let i = 0;
+    while (n >= 1000 && i < units.length - 1) { n /= 1000; i++; }
+    return i === 0 ? `${n} bytes` : `${n.toFixed(n < 10 ? 1 : 0)} ${units[i]}`;
+  };
+  const duration = (s) => s < 60 ? `${Math.ceil(s)} s` : s < 3600 ? `${Math.round(s / 60)} min` : `${(s / 3600).toFixed(1)} h`;
+
+  const meta = (d) => {
+    const amount = d.size ? `${bytes(d.received)} of ${bytes(d.size)}` : bytes(d.received);
+    switch (d.status) {
+      case "downloading": {
+        const left = d.size && d.speed > 0 ? ` · ${duration((d.size - d.received) / d.speed)} left` : "";
+        return `${amount} · ${bytes(d.speed)}/s${left}`;
+      }
+      case "completed": return `${bytes(d.size || d.received)} · ${d.host}`;
+      case "failed": return d.error || "Failed";
+      case "queued": return `Queued · ${d.host}`;
+      default: return `Paused · ${amount || d.host}`;
+    }
+  };
+
+  const action = (name, label, handler) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "icon";
+    button.title = label;
+    button.setAttribute("aria-label", label);
+    button.innerHTML = icons[name];
+    button.addEventListener("click", async () => {
+      button.disabled = true;
+      await handler();
+      refresh();
+    });
+    return button;
+  };
+
+  const act = async (method, path) => {
+    try {
+      const response = await fetch(path, { method, headers: { "Authorization": `Bearer ${password.get()}` } });
+      if (response.status === 401) return signOut("The password has changed. Enter the new one.");
+      if (!response.ok) {
+        const reply = await response.json().catch(() => ({}));
+        say("status", reply.error || `Something went wrong (${response.status}).`, "error");
+      }
+    } catch {
+      say("status", "Couldn't reach Haul. Is it still running?", "error");
+    }
+  };
+
+  const row = (d) => {
+    const item = document.createElement("div");
+    item.className = `item ${d.status}`;
+    const info = document.createElement("div");
+    info.className = "info";
+    const name = document.createElement("div");
+    name.className = "name";
+    name.textContent = d.name;
+    name.title = d.url;
+    const line = document.createElement("div");
+    line.className = `meta ${d.status === "failed" ? "failed" : ""}`;
+    line.textContent = meta(d);
+    info.append(name, line);
+    if (d.status !== "completed") {
+      const bar = document.createElement("div");
+      bar.className = "bar";
+      const fill = document.createElement("div");
+      fill.style.width = `${Math.round(d.progress * 1000) / 10}%`;
+      bar.append(fill);
+      info.append(bar);
+    }
+    const actions = document.createElement("div");
+    actions.className = "actions";
+    const path = `/downloads/${d.id}`;
+    if (d.status === "downloading" || d.status === "queued") actions.append(action("pause", "Pause", () => act("POST", `${path}/pause`)));
+    if (d.status === "paused" || d.status === "failed") actions.append(action("resume", d.status === "failed" ? "Retry" : "Resume", () => act("POST", `${path}/resume`)));
+    actions.append(action("remove", "Remove from list", async () => {
+      const unfinished = d.status !== "completed";
+      if (confirm(`Remove “${d.name}” from Haul?${unfinished ? " What's downloaded so far is deleted." : " The file stays on the Mac."}`)) await act("DELETE", path);
+    }));
+    item.append(info, actions);
+    return item;
+  };
+
+  // Unfinished first, newest first within each; at most 20 finished ones.
+  const order = (list) => {
+    const active = list.filter((d) => d.status !== "completed");
+    const done = list.filter((d) => d.status === "completed").slice(0, 20);
+    return [...active, ...done];
+  };
+
+  let timer;
+  const refresh = async () => {
+    clearTimeout(timer);
+    if ($("app").hidden || document.hidden) return;
+    try {
+      const response = await fetch("/downloads", { headers: { "Authorization": `Bearer ${password.get()}` } });
+      if (response.status === 401) return signOut("The password has changed. Enter the new one.");
+      if (response.ok) {
+        const { downloads = [] } = await response.json();
+        $("downloads").replaceChildren(...order(downloads).map(row));
+        const running = downloads.filter((d) => d.status === "downloading").length;
+        $("summary").textContent = running ? `${running} downloading` : "";
+      }
+    } catch {}
+    timer = setTimeout(refresh, 2000);
+  };
+  document.addEventListener("visibilitychange", refresh);
+
+  update();
+  show(!!password.get());
+  refresh();
+})();
+</script>
+</body>
+</html>

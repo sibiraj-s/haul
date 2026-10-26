@@ -215,6 +215,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Updater.shared.start()
         NSApp.servicesProvider = ServiceProvider.shared
         Task.detached(priority: .utility) { BrowserHosts.install() }
+        RemoteServer.shared.update()
     }
 
     /// haul://add links from other apps and browser extensions.

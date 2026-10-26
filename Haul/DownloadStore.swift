@@ -232,9 +232,10 @@ final class DownloadStore {
 
     /// `folder` is a folder picked for this download; nil saves to the default folder. `extract`
     /// unpacks the file when it's done, if it turns out to be an archive Haul can extract, and
-    /// `whenDone` then opens or shows the file (or what was extracted).
+    /// `whenDone` then opens or shows the file (or what was extracted). `reveal` selects it in
+    /// the list, clearing any search or filter; not for downloads added from another device.
     func add(url: URL, probe: Probe.Info?, connections: Int, start: Start, folder: SavedFolder? = nil, replaceExisting: Bool = false,
-             extract: Bool = false, whenDone: WhenDone = .nothing) {
+             extract: Bool = false, whenDone: WhenDone = .nothing, reveal: Bool = true) {
         var d = Download(url: url, name: probe?.name ?? url.lastPathComponent, size: nil,
                          status: start == .paused ? .paused : .queued, connections: connections)
         if let probe { d.apply(probe) }
@@ -249,9 +250,11 @@ final class DownloadStore {
             settings.rememberRecent(folder)
         }
         items.insert(d, at: 0)
-        selection = d.id
-        filter = .all
-        query = ""
+        if reveal {
+            selection = d.id
+            filter = .all
+            query = ""
+        }
         dirty = true
         if settings.notifyAdded { Notifier.added(d) }
         if start == .now { schedule() }

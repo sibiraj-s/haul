@@ -40,6 +40,15 @@ enum ListCleanup: String, CaseIterable, Identifiable {
     }
 }
 
+/// Who can reach the remote downloads page (RemoteServer).
+enum RemoteScope: String, CaseIterable, Identifiable {
+    /// Only this Mac, and a tunnel running on it.
+    case thisMac
+    /// Other devices on the network, and a tunnel running on another machine.
+    case network
+    var id: String { rawValue }
+}
+
 /// User preferences, persisted to UserDefaults.
 @Observable
 final class AppSettings {
@@ -105,6 +114,19 @@ final class AppSettings {
     var extractArchives: Bool { didSet { save(extractArchives, "extractArchives") } }
     /// Last choice for "When done" in the Add panel.
     var whenDone: WhenDone { didSet { save(whenDone.rawValue, "whenDone") } }
+    /// Serve the remote downloads page and API (RemoteServer).
+    var remoteOn: Bool {
+        didSet {
+            save(remoteOn, "remoteOn")
+            if remoteOn { loadRemotePassword() }
+            RemoteServer.shared.update()
+        }
+    }
+    var remoteScope: RemoteScope { didSet { save(remoteScope.rawValue, "remoteScope"); RemoteServer.shared.update() } }
+    var remotePort: Int { didSet { save(remotePort, "remotePort"); RemoteServer.shared.update() } }
+    /// Kept in the Keychain, and only read from it while remote downloads are on, so the
+    /// Keychain isn't touched for a feature that's off. Change it with `setRemotePassword`.
+    private(set) var remotePassword = ""
     private(set) var launchAtLogin = SMAppService.mainApp.status == .enabled
     /// Default save folder chosen by the user; nil means ~/Downloads.
     private(set) var defaultFolder: SavedFolder?
@@ -145,21 +167,36 @@ final class AppSettings {
         proxyPort = d.object(forKey: "proxyPort") as? Int ?? ProxyKind.http.defaultPort
         proxyUser = d.string(forKey: "proxyUser") ?? ""
         proxyBypass = d.string(forKey: "proxyBypass") ?? ""
-        proxyPassword = ProxyPassword.read()
+        proxyPassword = KeychainPassword.proxy.read()
         skipWebPages = d.object(forKey: "skipWebPages") as? Bool ?? true
         useServerDate = d.object(forKey: "useServerDate") as? Bool ?? false
         recordSource = d.object(forKey: "recordSource") as? Bool ?? true
         extractArchives = d.object(forKey: "extractArchives") as? Bool ?? false
         whenDone = WhenDone(rawValue: d.string(forKey: "whenDone") ?? "") ?? .nothing
+        remoteOn = d.object(forKey: "remoteOn") as? Bool ?? false
+        remoteScope = RemoteScope(rawValue: d.string(forKey: "remoteScope") ?? "") ?? .thisMac
+        remotePort = d.object(forKey: "remotePort") as? Int ?? RemoteServer.defaultPort
         defaultFolder = d.data(forKey: "defaultFolder").flatMap { SavedFolder(bookmark: $0) }
         recentFolders = (d.array(forKey: "recentFolders") as? [Data] ?? []).compactMap { SavedFolder(bookmark: $0) }
         publishProxy()
+        if remoteOn { loadRemotePassword() }
     }
 
     func setProxyPassword(_ password: String) {
         proxyPassword = password
-        ProxyPassword.save(password)
+        KeychainPassword.proxy.save(password)
         publishProxy()
+    }
+
+    func setRemotePassword(_ password: String) {
+        remotePassword = password
+        KeychainPassword.remote.save(password)
+    }
+
+    /// Reads the remote password, making one the first time remote downloads are turned on.
+    private func loadRemotePassword() {
+        remotePassword = KeychainPassword.remote.read()
+        if remotePassword.isEmpty { setRemotePassword(RemoteAPI.newPassword()) }
     }
 
     /// The proxy settings as the download sessions will use them.

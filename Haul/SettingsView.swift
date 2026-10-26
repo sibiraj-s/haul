@@ -3,14 +3,15 @@ import SwiftUI
 
 struct SettingsView: View {
     enum Pane: String, CaseIterable {
-        case general = "General", downloads = "Downloads", network = "Network", notifications = "Notifications",
-             extensions = "Extensions", about = "About"
+        case general = "General", downloads = "Downloads", network = "Network", remote = "Remote",
+             notifications = "Notifications", extensions = "Extensions", about = "About"
 
         var symbol: String {
             switch self {
             case .general: "gearshape"
             case .downloads: "arrow.down.to.line"
             case .network: "globe"
+            case .remote: "dot.radiowaves.left.and.right"
             case .notifications: "bell"
             case .extensions: "puzzlepiece.extension"
             case .about: "info.circle"
@@ -44,7 +45,7 @@ struct SettingsView: View {
                                 Text(p.rawValue).font(.system(size: 11))
                             }
                             .foregroundStyle(pane == p ? Theme.accent : Theme.text2)
-                            .frame(width: 76, height: 48)
+                            .frame(width: 72, height: 48)
                             .background(RoundedRectangle(cornerRadius: 9).fill(pane == p ? Theme.selg : .clear))
                             .contentShape(Rectangle())
                         }
@@ -63,6 +64,7 @@ struct SettingsView: View {
                 case .general: GeneralSettings()
                 case .downloads: DownloadSettings()
                 case .network: NetworkSettings()
+                case .remote: RemoteSettings()
                 case .notifications: NotificationSettings()
                 case .extensions: ExtensionSettings()
                 case .about: AboutSettings()
@@ -485,6 +487,109 @@ private struct ProxySettingsGroup: View {
     }
 
     private func placeholder(_ text: String) -> Text { Text(text).foregroundStyle(Theme.text3) }
+}
+
+/// The remote downloads page and API (RemoteServer).
+private struct RemoteSettings: View {
+    @Bindable private var settings = AppSettings.shared
+    private let server = RemoteServer.shared
+    /// The password as typed; saved when editing ends, and never empty.
+    @State private var password = AppSettings.shared.remotePassword
+    @FocusState private var editingPassword: Bool
+
+    private var status: (title: String, caption: String?) {
+        switch server.state {
+        case .off, .starting: ("Starting…", nil)
+        case .running: (settings.remoteScope == .thisMac ? "Running on this Mac" : "Running on your network",
+                        server.pageURL?.absoluteString)
+        case .failed(let message): ("Couldn't start", message)
+        }
+    }
+
+    var body: some View {
+        DesignGroup {
+            SettingRow(title: "Add downloads remotely", caption: "A page to paste links into, and an API for curl and scripts.") {
+                DesignSwitch(isOn: $settings.remoteOn)
+            }
+            // The Mac may have joined another network since the server started.
+            .onAppear { server.refreshAddress() }
+            if settings.remoteOn {
+                SettingRow(title: "Available to", caption: settings.remoteScope == .thisMac
+                    ? "Only this Mac, and a tunnel running on it."
+                    : "Devices on your network, and a tunnel on another machine.") {
+                    PopUpMenu(options: [(RemoteScope.thisMac, "This Mac"), (.network, "Network")], selection: $settings.remoteScope)
+                }
+                SettingRow(title: "Port") {
+                    InputField(width: 64) {
+                        TextField("", value: $settings.remotePort, format: .number.grouping(.never))
+                            .multilineTextAlignment(.trailing)
+                            .monospacedDigit()
+                    }
+                }
+                SettingRow(title: "Password", caption: "Needed to use the page and the API. Kept in the Keychain.") {
+                    HStack(spacing: 6) {
+                        InputField(width: 160) {
+                            TextField("", text: $password).monospaced()
+                                .focused($editingPassword)
+                                .onSubmit(savePassword)
+                        }
+                        .onChange(of: editingPassword) { _, editing in if !editing { savePassword() } }
+                        .onChange(of: settings.remotePassword) { _, new in password = new }
+                        .onDisappear(perform: savePassword)
+                        PillButton(title: "New", height: 24, fontSize: 12) { settings.setRemotePassword(RemoteAPI.newPassword()) }
+                    }
+                }
+            }
+        }
+        if settings.remoteOn {
+            DesignGroup {
+                SettingRow(title: status.title, caption: status.caption) {
+                    if case .running = server.state, let url = server.pageURL {
+                        HStack(spacing: 6) {
+                            PillButton(title: "Open", height: 24, fontSize: 12) { NSWorkspace.shared.open(url) }
+                            PillButton(title: "Copy curl", height: 24, fontSize: 12) {
+                                copyToPasteboard("curl -u \(shellQuoted(":" + settings.remotePassword)) -d 'https://example.com/file.zip' \(url.absoluteString)add")
+                            }
+                        }
+                    }
+                }
+                .textSelection(.enabled)
+                if case .running = server.state, settings.remoteScope == .network {
+                    SettingRow(title: "On other devices", caption: server.networkURL?.absoluteString ?? "Not connected to a network.") {
+                        if let url = server.networkURL {
+                            PillButton(title: "Copy", height: 24, fontSize: 12) { copyToPasteboard(url.absoluteString) }
+                        }
+                    }
+                    .textSelection(.enabled)
+                }
+            }
+            Text("Downloads added remotely start right away in the default folder. To add them from anywhere, point a tunnel such as cloudflared or Tailscale at the page.")
+                .font(.system(size: 12))
+                .foregroundStyle(Theme.text2)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 12)
+            // The icon inline, so the text lines up with the note above.
+            Text("\(Text(Image(systemName: "exclamationmark.triangle.fill")).foregroundStyle(Theme.orange)) On the internet, anyone with the link can try to guess the password and add downloads to this Mac. Use a long password, and prefer a private tunnel such as Tailscale, or one behind a sign-in such as Cloudflare Access.")
+            .font(.system(size: 11))
+            .foregroundStyle(Theme.text2)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 12)
+        }
+    }
+
+    /// Keeps the saved password when the field is left empty.
+    private func savePassword() {
+        let typed = password.trimmingCharacters(in: .whitespaces)
+        if typed.isEmpty { return password = settings.remotePassword }
+        if typed != settings.remotePassword { settings.setRemotePassword(typed) }
+    }
+
+    /// `text` as one shell word.
+    private func shellQuoted(_ text: String) -> String {
+        "'" + text.replacingOccurrences(of: "'", with: #"'\''"#) + "'"
+    }
 }
 
 /// A text field with the same chrome as the other controls.

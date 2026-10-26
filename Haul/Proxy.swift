@@ -81,15 +81,25 @@ nonisolated struct ProxySettings: Sendable, Equatable {
     }
 }
 
-/// The custom proxy's password, kept in the Keychain rather than in preferences.
-nonisolated enum ProxyPassword {
-    private static let item: [String: Any] = [
-        kSecClass as String: kSecClassGenericPassword,
-        kSecAttrService as String: "\(Bundle.main.bundleIdentifier ?? "dev.sibiraj.haul").proxy",
-        kSecAttrAccount as String: "proxy",
-    ]
+/// A password kept in the Keychain rather than in preferences.
+nonisolated struct KeychainPassword {
+    /// The custom proxy's password.
+    static let proxy = KeychainPassword(name: "proxy", label: "Haul proxy password")
+    /// The password for the remote downloads page and API (RemoteServer).
+    static let remote = KeychainPassword(name: "remote", label: "Haul remote downloads password")
 
-    static func read() -> String {
+    let name: String
+    let label: String
+
+    private var item: [String: Any] {
+        [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: "\(Bundle.main.bundleIdentifier ?? "dev.sibiraj.haul").\(name)",
+            kSecAttrAccount as String: name,
+        ]
+    }
+
+    func read() -> String {
         var query = item
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
@@ -99,13 +109,13 @@ nonisolated enum ProxyPassword {
     }
 
     /// Saves the password; an empty one removes it.
-    static func save(_ password: String) {
+    func save(_ password: String) {
         SecItemDelete(item as CFDictionary)
         guard !password.isEmpty else { return }
         var add = item
-        add[kSecAttrLabel as String] = "Haul proxy password"
+        add[kSecAttrLabel as String] = label
         add[kSecValueData as String] = Data(password.utf8)
         let status = SecItemAdd(add as CFDictionary, nil)
-        if status != errSecSuccess { NSLog("Haul: couldn't save the proxy password: \(status)") }
+        if status != errSecSuccess { NSLog("Haul: couldn't save the \(name) password: \(status)") }
     }
 }
