@@ -332,3 +332,6 @@ $RECYCLE.BIN/
 
 # and uncomment the following lines
 # .pnp.*
+
+# Personal code signing (see Signing.xcconfig)
+Local.xcconfig

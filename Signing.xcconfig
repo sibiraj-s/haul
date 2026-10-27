@@ -1,0 +1,15 @@
+// Code signing defaults. Builds are signed to run locally unless Local.xcconfig overrides these.
+//
+// Those signatures change with every build, so macOS forgets permission grants and other
+// per-app state after each rebuild. To keep them, create Local.xcconfig (gitignored) with your
+// own identity:
+//
+//   CODE_SIGN_STYLE = Manual
+//   CODE_SIGN_IDENTITY = Developer ID Application
+//   DEVELOPMENT_TEAM = <your team ID>
+//
+// Release builds (scripts/build.sh) pass their signing settings on the command line instead.
+
+CODE_SIGN_STYLE = Automatic
+
+#include? "Local.xcconfig"
