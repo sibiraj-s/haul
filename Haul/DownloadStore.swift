@@ -82,9 +82,12 @@ final class DownloadStore {
         }
         selection = items.first?.id
 
-        timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+        // Common modes, so progress keeps updating while a menu is open or a window is being resized.
+        let timer = Timer(timeInterval: 0.5, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.tick() }
         }
+        RunLoop.main.add(timer, forMode: .common)
+        self.timer = timer
         pathMonitor.pathUpdateHandler = { [weak self] path in
             // The interface traffic goes over, skipping VPN tunnels; others may still be joined to a hotspot.
             let primary = path.availableInterfaces.first { $0.type != .other && $0.type != .loopback }
