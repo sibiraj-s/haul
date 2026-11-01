@@ -15,6 +15,10 @@ nonisolated final class RangeServer: URLProtocol, @unchecked Sendable {
         var limit = Int.max
         /// The Retry-After sent with each refusal, in seconds.
         var retryAfter = 1
+        /// Requests starting at these bytes are answered from byte 0 instead, this many times each.
+        var misplace: [Int64: Int] = [:]
+        /// The total sent in Content-Range, when it should differ from `size` (another version of the file).
+        var reportedSize: Int64?
 
         let lock = NSLock()
         var requests: [(start: Int64, status: Int, at: Date)] = []
@@ -66,8 +70,14 @@ nonisolated final class RangeServer: URLProtocol, @unchecked Sendable {
         self.host = host
         let bounds = (request.value(forHTTPHeaderField: "Range") ?? "bytes=0-")
             .dropFirst("bytes=".count).split(separator: "-", omittingEmptySubsequences: false)
-        let start = Int64(bounds[0]) ?? 0
-        let end = bounds.count > 1 ? Int64(bounds[1]) ?? host.size - 1 : host.size - 1
+        var start = Int64(bounds[0]) ?? 0
+        var end = bounds.count > 1 ? Int64(bounds[1]) ?? host.size - 1 : host.size - 1
+        let misplaced = host.lock.withLock {
+            guard host.misplace[start, default: 0] > 0 else { return false }
+            host.misplace[start]! -= 1
+            return true
+        }
+        if misplaced { (start, end) = (0, end - start) }
 
         let throttled = host.lock.withLock {
             let refused = host.refuse[start, default: 0] > 0
@@ -90,7 +100,7 @@ nonisolated final class RangeServer: URLProtocol, @unchecked Sendable {
             return
         }
         let response = HTTPURLResponse(url: url, statusCode: 206, httpVersion: "HTTP/1.1", headerFields: [
-            "Content-Range": "bytes \(start)-\(end)/\(host.size)",
+            "Content-Range": "bytes \(start)-\(end)/\(host.reportedSize ?? host.size)",
             "Content-Length": "\(end - start + 1)",
         ])!
         client!.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
@@ -265,5 +275,74 @@ struct SegmentedDownloaderTests {
         #expect(requests[..<retry].allSatisfy { [0, third, 2 * third].contains($0.start) })
         expectWhole(segments, size: size)
         #expect(try Data(contentsOf: part) == RangeServer.content(0...size - 1))
+    }
+
+    @Test func replyFromTheWrongOffsetIsRetriedNotWritten() async throws {
+        let size = 32 * Self.mb
+        let half = 16 * Self.mb
+        let host = RangeServer.Host(size: size) { _ in 0.003 }
+        host.misplace = [half: 2]
+        let part = partURL()
+        defer { try? FileManager.default.removeItem(at: part) }
+
+        let (result, segments, _) = await download(RangeServer.serve(host), segments: Segment.split(size: size, connections: 2, resumable: true),
+                                                connections: 2, partURL: part)
+        try result.get()
+        expectWhole(segments, size: size)
+        #expect(try Data(contentsOf: part) == RangeServer.content(0...size - 1))
+    }
+
+    @Test func replyFromTheWrongOffsetFailsOnceRetriesRunOut() async {
+        let size = 8 * Self.mb
+        let host = RangeServer.Host(size: size) { _ in 0.003 }
+        host.misplace = [4 * Self.mb: 100]
+        let part = partURL()
+        defer { try? FileManager.default.removeItem(at: part) }
+
+        let (result, _, _) = await download(RangeServer.serve(host), segments: Segment.split(size: size, connections: 2, resumable: true),
+                                         connections: 2, partURL: part)
+        guard case .failure(let error) = result, case .wrongRange? = error as? DownloadError else {
+            Issue.record("expected wrongRange, got \(result)")
+            return
+        }
+    }
+
+    @Test func differentTotalSizeFailsAsFileChangedWithoutRetrying() async {
+        let size = 8 * Self.mb
+        let host = RangeServer.Host(size: size) { _ in 0.003 }
+        host.reportedSize = size + 1
+        let part = partURL()
+        defer { try? FileManager.default.removeItem(at: part) }
+
+        let (result, segments, _) = await download(RangeServer.serve(host), segments: Segment.split(size: size, connections: 2, resumable: true),
+                                                connections: 2, partURL: part)
+        guard case .failure(let error) = result, case .fileChanged? = error as? DownloadError else {
+            Issue.record("expected fileChanged, got \(result)")
+            return
+        }
+        // Rejected before writing: nothing from the other version reached the file.
+        #expect(segments.allSatisfy { $0.done == 0 })
+        // Not retried: one request per segment at most.
+        #expect(host.lock.withLock { host.requests.count } <= 2)
+    }
+
+    @Test func rangeProblem() {
+        func check(_ header: String?, _ from: Int64, _ size: Int64?) -> String {
+            switch SegmentedDownloader.rangeProblem(header, from: from, size: size) {
+            case nil: "ok"
+            case .wrongRange?: "wrongRange"
+            case .fileChanged?: "fileChanged"
+            case let other?: "\(other)"
+            }
+        }
+        #expect(check("bytes 100-199/1000", 100, 1000) == "ok")
+        #expect(check("bytes 100-199/*", 100, 1000) == "ok")
+        #expect(check("bytes 100-199/1000", 100, nil) == "ok")
+        #expect(check("bytes 0-99/1000", 100, 1000) == "wrongRange")
+        #expect(check(nil, 100, 1000) == "wrongRange")
+        #expect(check("garbage", 100, 1000) == "wrongRange")
+        #expect(check("bytes 199-100/1000", 199, 1000) == "wrongRange")
+        #expect(check("bytes 100-1000/1000", 100, 1000) == "wrongRange")
+        #expect(check("bytes 100-199/2000", 100, 1000) == "fileChanged")
     }
 }

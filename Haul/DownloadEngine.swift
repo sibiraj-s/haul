@@ -15,13 +15,15 @@ nonisolated enum DownloadError: LocalizedError {
     case signInRequired(realm: String?, digest: Bool)
     /// Not enough free space; the message says how much is needed and free.
     case diskFull(String)
+    /// A 206 reply whose Content-Range is missing or starts somewhere other than the byte asked for.
+    case wrongRange
 
     /// Worth trying again later on its own: dropped connections, timeouts, server errors.
     static func isTransient(_ error: Error) -> Bool {
         switch error {
         case let e as DownloadError:
             switch e {
-            case .truncated, .throttled: return true
+            case .truncated, .throttled, .wrongRange: return true
             case .http(let code): return code >= 500 || code == 408 || code == 429
             default: return false
             }
@@ -89,6 +91,7 @@ nonisolated enum DownloadError: LocalizedError {
         case .http(let code): "Server responded with HTTP \(code) (\(HTTPURLResponse.localizedString(forStatusCode: code)))"
         case .noRangeSupport: "Server doesn't support resuming"
         case .truncated: "Connection closed before the file finished"
+        case .wrongRange: "Server sent a different part of the file than was asked for"
         case .throttled(_, let status): DownloadError.http(status).errorDescription
         }
     }
@@ -408,6 +411,16 @@ nonisolated final class SegmentedDownloader: NSObject, URLSessionDataDelegate, @
                 rejected[dataTask.taskIdentifier] = ifRange != nil ? DownloadError.fileChanged : DownloadError.noRangeSupport
                 return completionHandler(.cancel)
             }
+            if http.statusCode == 206 && ranged {
+                // Nothing of this reply is written yet, so the segment's next byte is still where the request started.
+                let ends = s.compactMap(\.end)
+                let size = ends.count == s.count ? ends.max().map { $0 + 1 } : nil
+                if let problem = Self.rangeProblem(http.value(forHTTPHeaderField: "Content-Range"),
+                                                   from: s[index].start + s[index].done, size: size) {
+                    rejected[dataTask.taskIdentifier] = problem
+                    return completionHandler(.cancel)
+                }
+            }
             if http.statusCode == 206 { confirmed.insert(dataTask.taskIdentifier) }
         }
         retriedEarly.remove(index)
@@ -479,11 +492,26 @@ nonisolated final class SegmentedDownloader: NSObject, URLSessionDataDelegate, @
         }
         // Anything but a refusal, and the part may take the next free connection if it's refused later.
         retriedEarly.remove(index)
-        if let rejection { return finish(.failure(rejection)) }
+        // A wrong range may come from one bad cache node, so it's retried like a dropped connection.
+        let wrongRange = if case .wrongRange? = rejection as? DownloadError { true } else { false }
+        if let rejection, !wrongRange { return finish(.failure(rejection)) }
 
         let attempt = (attempts[index] ?? 0) + 1
         attempts[index] = attempt
-        guard attempt <= 5 else { return finish(.failure(error ?? DownloadError.truncated)) }
+        guard attempt <= 5 else { return finish(.failure(rejection ?? error ?? DownloadError.truncated)) }
         requeue(index, after: Double(attempt))
+    }
+
+    /// Why a 206 reply to a request starting at `from` can't be written there, or nil if it can.
+    /// `size` is the file's total when known; a different total means the server has another version.
+    nonisolated static func rangeProblem(_ header: String?, from: Int64, size: Int64?) -> DownloadError? {
+        // "bytes first-last/total", where total may be "*".
+        guard let header, let match = header.wholeMatch(of: /\s*bytes\s+(\d+)-(\d+)\/(\d+|\*)\s*/),
+              let first = Int64(match.1), let last = Int64(match.2), first <= last else { return .wrongRange }
+        if let total = Int64(match.3) {
+            if last >= total { return .wrongRange }
+            if let size, total != size { return .fileChanged }
+        }
+        return first == from ? nil : .wrongRange
     }
 }
