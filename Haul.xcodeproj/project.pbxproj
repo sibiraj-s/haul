@@ -67,12 +67,12 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		000000000000000000000050 /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.xcconfig; sourceTree = "<group>"; };
 		000000000000000000000120 /* Haul.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Haul.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		000000000000000000000220 /* HaulTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HaulTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		000000000000000000000320 /* SafariExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SafariExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		000000000000000000000420 /* ShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		000000000000000000000620 /* haul */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = haul; sourceTree = BUILT_PRODUCTS_DIR; };
-		000000000000000000000050 /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -304,7 +304,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 2630;
-				LastUpgradeCheck = 2700;
+				LastUpgradeCheck = 2720;
 				TargetAttributes = {
 					000000000000000100000000 = {
 						CreatedOnToolsVersion = 26.3;
@@ -376,23 +376,22 @@
 /* Begin PBXShellScriptBuildPhase section */
 		000000000000000180000000 /* Chrome Extension ID */ = {
 			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
 			inputPaths = (
 				"$(SRCROOT)/BrowserExtension/manifest.json",
 			);
 			name = "Chrome Extension ID";
-			outputFileListPaths = (
-			);
 			outputPaths = (
 				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/ChromeExtensionID.txt",
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# The Chrome extension's ID, which BrowserHosts allows: the first 32 hex digits of the\n# SHA-256 of the key in its manifest, spelled with a-p.\nset -e\nkey=\"$(plutil -extract key raw -o - \"$SCRIPT_INPUT_FILE_0\")\"\nprintf '%s' \"$key\" | base64 -D | shasum -a 256 | cut -c1-32 | tr '0-9a-f' 'a-p' > \"$SCRIPT_OUTPUT_FILE_0\"\n";
+			shellScript = (
+				"# The Chrome extension's ID, which BrowserHosts allows: the first 32 hex digits of the",
+				"# SHA-256 of the key in its manifest, spelled with a-p.",
+				"set -e",
+				"key=\"$(plutil -extract key raw -o - \"$SCRIPT_INPUT_FILE_0\")\"",
+				"printf '%s' \"$key\" | base64 -D | shasum -a 256 | cut -c1-32 | tr '0-9a-f' 'a-p' > \"$SCRIPT_OUTPUT_FILE_0\"",
+				"",
+			);
 		};
 /* End PBXShellScriptBuildPhase section */
 
