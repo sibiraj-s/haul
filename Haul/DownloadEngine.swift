@@ -127,6 +127,7 @@ nonisolated enum Probe {
     private static func once(_ url: URL, browser: BrowserContext?) async throws -> Info {
         var request = URLRequest(url: url, timeoutInterval: 20)
         request.setValue("bytes=0-0", forHTTPHeaderField: "Range")
+        request.setValue(acceptEncoding, forHTTPHeaderField: "Accept-Encoding")
         browser?.apply(to: &request)
         let config = ProxySettings.sessionConfiguration()
         browser?.apply(to: config)
@@ -155,12 +156,24 @@ nonisolated enum Probe {
 extension Probe {
     /// The file's total size and whether ranged requests work, from the reply to a `bytes=0-0` request.
     nonisolated static func sizeAndRanges(_ http: HTTPURLResponse) -> (size: Int64?, ranges: Bool) {
+        // Ranges and lengths would count compressed bytes, but URLSession hands over decompressed ones,
+        // so the file is read in one go to its end.
+        if isEncoded(http) { return (nil, false) }
         if http.statusCode == 206 {
             // "bytes 0-0/*" means the total is unknown. The body's length is just the one byte asked for.
             let size = http.value(forHTTPHeaderField: "Content-Range")?.split(separator: "/").last.flatMap { Int64($0) }
             return (size, size != nil)
         }
         return (http.expectedContentLength >= 0 ? http.expectedContentLength : nil, false)
+    }
+
+    /// Requests ask for the file's own bytes, never a compressed transfer of them.
+    nonisolated static let acceptEncoding = "identity"
+
+    /// Whether the server compressed the reply despite `acceptEncoding`.
+    nonisolated static func isEncoded(_ http: HTTPURLResponse) -> Bool {
+        guard let encoding = http.value(forHTTPHeaderField: "Content-Encoding")?.trimmingCharacters(in: .whitespaces) else { return false }
+        return !encoding.isEmpty && encoding.lowercased() != "identity"
     }
 
     /// Where URLSession looks up saved credentials for a sign-in challenge. Requests use the
@@ -373,6 +386,7 @@ nonisolated final class SegmentedDownloader: NSObject, URLSessionDataDelegate, @
         guard !isStopped, let session else { return }
         let s = current[index]
         var request = URLRequest(url: url)
+        request.setValue(Probe.acceptEncoding, forHTTPHeaderField: "Accept-Encoding")
         browser?.apply(to: &request)
         let from = s.start + s.done
         if let end = s.end {
@@ -409,6 +423,11 @@ nonisolated final class SegmentedDownloader: NSObject, URLSessionDataDelegate, @
             if ranged && http.statusCode != 206 && !(s.count == 1 && s[index].start + s[index].done == 0) {
                 // With If-Range, a full 200 reply means the validator no longer matches.
                 rejected[dataTask.taskIdentifier] = ifRange != nil ? DownloadError.fileChanged : DownloadError.noRangeSupport
+                return completionHandler(.cancel)
+            }
+            // Offsets in a compressed reply don't match the bytes URLSession hands over after decompressing.
+            if ranged && Probe.isEncoded(http) {
+                rejected[dataTask.taskIdentifier] = DownloadError.noRangeSupport
                 return completionHandler(.cancel)
             }
             if http.statusCode == 206 && ranged {

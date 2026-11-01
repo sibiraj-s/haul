@@ -144,6 +144,21 @@ struct ProbeSizeTests {
         #expect(!info.ranges)
     }
 
+    @Test func compressedReplyIsReadWholeToItsEnd() {
+        let partial = Probe.sizeAndRanges(response(206, ["Content-Range": "bytes 0-0/1048576", "Content-Encoding": "gzip"]))
+        #expect(partial.size == nil)
+        #expect(!partial.ranges)
+        let full = Probe.sizeAndRanges(response(200, ["Content-Length": "5000", "Content-Encoding": "br"]))
+        #expect(full.size == nil)
+        #expect(!full.ranges)
+    }
+
+    @Test func identityEncodingIsNotCompressed() {
+        let info = Probe.sizeAndRanges(response(206, ["Content-Range": "bytes 0-0/1048576", "Content-Encoding": "Identity"]))
+        #expect(info.size == 1_048_576)
+        #expect(info.ranges)
+    }
+
     @Test func fullReplyWithoutLengthHasNoSize() {
         let info = Probe.sizeAndRanges(response(200, [:]))
         #expect(info.size == nil)

@@ -19,8 +19,12 @@ nonisolated final class RangeServer: URLProtocol, @unchecked Sendable {
         var misplace: [Int64: Int] = [:]
         /// The total sent in Content-Range, when it should differ from `size` (another version of the file).
         var reportedSize: Int64?
+        /// Sent as Content-Encoding, as if the server compressed the reply anyway.
+        var encoding: String?
 
         let lock = NSLock()
+        /// The Accept-Encoding of every request, in order.
+        var acceptEncodings: [String?] = []
         var requests: [(start: Int64, status: Int, at: Date)] = []
         var active = 0
         var maxActive = 0
@@ -84,6 +88,7 @@ nonisolated final class RangeServer: URLProtocol, @unchecked Sendable {
             if refused { host.refuse[start]! -= 1 }
             let throttled = refused || host.active >= host.limit
             host.requests.append((start, throttled ? 429 : 206, Date()))
+            host.acceptEncodings.append(request.value(forHTTPHeaderField: "Accept-Encoding"))
             if !throttled {
                 host.active += 1
                 host.maxActive = max(host.maxActive, host.active)
@@ -99,10 +104,12 @@ nonisolated final class RangeServer: URLProtocol, @unchecked Sendable {
             client!.urlProtocolDidFinishLoading(self)
             return
         }
-        let response = HTTPURLResponse(url: url, statusCode: 206, httpVersion: "HTTP/1.1", headerFields: [
+        var headers = [
             "Content-Range": "bytes \(start)-\(end)/\(host.reportedSize ?? host.size)",
             "Content-Length": "\(end - start + 1)",
-        ])!
+        ]
+        if let encoding = host.encoding { headers["Content-Encoding"] = encoding }
+        let response = HTTPURLResponse(url: url, statusCode: 206, httpVersion: "HTTP/1.1", headerFields: headers)!
         client!.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
         send(from: start, to: end, wait: host.delay(start))
     }
@@ -324,6 +331,35 @@ struct SegmentedDownloaderTests {
         #expect(segments.allSatisfy { $0.done == 0 })
         // Not retried: one request per segment at most.
         #expect(host.lock.withLock { host.requests.count } <= 2)
+    }
+
+    @Test func asksForUncompressedBytes() async throws {
+        let size = 8 * Self.mb
+        let host = RangeServer.Host(size: size) { _ in 0.003 }
+        let part = partURL()
+        defer { try? FileManager.default.removeItem(at: part) }
+
+        let (result, _, _) = await download(RangeServer.serve(host), segments: Segment.split(size: size, connections: 2, resumable: true),
+                                         connections: 2, partURL: part)
+        try result.get()
+        let sent = host.lock.withLock { host.acceptEncodings }
+        #expect(!sent.isEmpty && sent.allSatisfy { $0 == "identity" })
+    }
+
+    @Test func compressedRangedReplyIsNotWritten() async {
+        let size = 8 * Self.mb
+        let host = RangeServer.Host(size: size) { _ in 0.003 }
+        host.encoding = "gzip"
+        let part = partURL()
+        defer { try? FileManager.default.removeItem(at: part) }
+
+        let (result, segments, _) = await download(RangeServer.serve(host), segments: Segment.split(size: size, connections: 2, resumable: true),
+                                                connections: 2, partURL: part)
+        guard case .failure(let error) = result, case .noRangeSupport? = error as? DownloadError else {
+            Issue.record("expected noRangeSupport, got \(result)")
+            return
+        }
+        #expect(segments.allSatisfy { $0.done == 0 })
     }
 
     @Test func rangeProblem() {
