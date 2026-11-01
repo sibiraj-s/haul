@@ -1,5 +1,15 @@
 # haul
 
+## 1.5.2
+
+### Patch Changes
+
+- 9bdf0d5: Fix downloads that could finish corrupted when a server sent a different part of the file than asked for: such replies are now retried instead of written, and a reply for a different version of the file stops the download as changed on the server
+- d9f4bae: Long downloads on an unreliable network no longer fail after a few dropped connections: a connection that dropped after making progress gets its full set of retries again
+- 0fd4713: Download faster from servers that use HTTP/2: each connection is now a connection of its own, where before all of a download's connections shared a single one to the server
+- 08deb08: Fix downloads that could finish corrupted when a server compressed its replies: Haul now asks for the file's own bytes, and if a server compresses them anyway, the file is downloaded in one go instead of in parts
+- ca2948a: Check a finished download holds every byte of the file before saving it: a download missing parts now fails with a prompt to restart it instead of saving a broken file, and leftover bytes from an earlier attempt are removed
+
 ## 1.5.1
 
 ### Patch Changes
