@@ -429,6 +429,13 @@ private struct NetworkSettings: View {
             SettingRow(title: "Pause on Personal Hotspot", caption: "Also respects Low Data Mode.") {
                 DesignSwitch(isOn: $settings.pauseOnExpensive)
             }
+            SettingRow(title: "Multi-network downloads", caption: "Downloads go over Wi‑Fi, Ethernet and tethering at once. Not while a VPN or proxy is on."
+                       + (settings.pauseOnExpensive ? " Metered networks, like a phone’s hotspot or tethering, are left out while Pause on Personal Hotspot is on." : "")) {
+                DesignSwitch(isOn: Binding(get: { settings.useAllNetworks }, set: {
+                    settings.useAllNetworks = $0
+                    settings.allNetworksOfferAnswered = true
+                }))
+            }
         }
         DesignGroup {
             SettingRow(title: "Retry failed downloads", caption: "Up to \(DownloadStore.maxRetries) times after a dropped connection or server error.") {

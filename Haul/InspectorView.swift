@@ -97,6 +97,7 @@ struct InspectorView: View {
                 } else {
                     row(connectionLine(d, total: d.connectionLimit), speedLine(d))
                     row("", timeLine(d) ?? "")
+                    if d.networkSpeeds.count > 1 { row(networksLine(d), "") }
                 }
             }
             .lineLimit(1)
@@ -136,6 +137,13 @@ struct InspectorView: View {
         }
         let line = "\(d.liveConnections) of \(total) connections"
         return d.serverLimit != nil ? line + " · server limit" : line
+    }
+
+    /// Each network's share while the download uses more than one, fastest first.
+    private func networksLine(_ d: Download) -> String {
+        d.networkSpeeds.sorted { $0.value > $1.value }
+            .map { "\(NetworkLink.displayName($0.key)) \(formatBytes($0.value))/s" }
+            .joined(separator: " · ")
     }
 
     private func speedLine(_ d: Download) -> String {

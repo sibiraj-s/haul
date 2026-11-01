@@ -253,6 +253,17 @@ function Network({ demo }: { demo: Demo }) {
         <Row title="Pause on Personal Hotspot" caption="Also respects Low Data Mode.">
           {toggle('pauseOnExpensive')}
         </Row>
+        <Row
+          title="Multi-network downloads"
+          caption={
+            'Downloads go over Wi‑Fi, Ethernet and tethering at once. Not while a VPN or proxy is on.' +
+            (s.pauseOnExpensive
+              ? ' Metered networks, like a phone’s hotspot or tethering, are left out while Pause on Personal Hotspot is on.'
+              : '')
+          }
+        >
+          {toggle('useAllNetworks')}
+        </Row>
       </Group>
       <Group>
         <Row

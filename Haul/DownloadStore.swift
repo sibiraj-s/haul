@@ -39,8 +39,12 @@ final class DownloadStore {
     /// Nothing starts until the first network update, so a relaunch on a hotspot doesn't start
     /// what was paused for it before we know.
     @ObservationIgnored private var networkKnown = false
-    /// The last lease read for each interface, for when reading it fails.
-    nonisolated(unsafe) private static var lastLeases: [String: (router: String?, metered: Bool)] = [:]
+    /// Every network the Mac is on, for spreading a download's connections over them.
+    private(set) var networks = NetworkWatch.State()
+    @ObservationIgnored private var networkWatch: NetworkWatch?
+    /// Downloads go through a proxy; read when a download starts and each tick while it could matter,
+    /// rather than on every use, as reading the system's proxy settings isn't free.
+    private(set) var proxied = false
     /// Queued downloads are held back because of the network.
     var waitingForNetwork: Bool { settings.pauseOnExpensive && onExpensiveNetwork && !allowExpensiveNetwork }
 
@@ -54,6 +58,18 @@ final class DownloadStore {
     @ObservationIgnored private let limiter = RateLimiter()
     /// Recent (bytes, time) readings per download; speed is measured across this window like curl's progress meter.
     @ObservationIgnored private var samples: [UUID: [(bytes: Int64, at: Date)]] = [:]
+    /// The same readings for each network, while a download uses more than one.
+    @ObservationIgnored private var networkSamples: [UUID: [(bytes: [String: Int64], at: Date)]] = [:]
+    /// The networks each running engine was given, to tell when they should change.
+    @ObservationIgnored private var engineRoutes: [UUID: [Route]] = [:]
+    /// Whether "Multi-network downloads" was on when each running engine started, so turning it on or off
+    /// applies at once rather than waiting like a network that just joined.
+    @ObservationIgnored private var engineAllNetworks: [UUID: Bool] = [:]
+    /// Networks a running download could add, and since when, until they've held long enough to restart it on them.
+    @ObservationIgnored private var newRoutes: [UUID: (routes: [Route], since: Date)] = [:]
+    /// How long a network must stay before running downloads restart to use it, so one that keeps
+    /// dropping out and coming back doesn't restart them over and over.
+    nonisolated static let networkSettle: TimeInterval = 10
     private static let speedWindow: TimeInterval = 4
     @ObservationIgnored private var timer: Timer?
     @ObservationIgnored private let pathMonitor = NWPathMonitor()
@@ -69,6 +85,8 @@ final class DownloadStore {
     static var maxRetries: Int { retryDelays.count }
 
     private init() {
+        // Before anything can start, so no download goes around a proxy at launch.
+        refreshProxied()
         load()
         // Anything that was running when we quit goes back in the queue and resumes on its own.
         for i in items.indices where items[i].status == .downloading { items[i].status = .queued }
@@ -92,11 +110,7 @@ final class DownloadStore {
             // The interface traffic goes over, skipping VPN tunnels; others may still be joined to a hotspot.
             let primary = path.availableInterfaces.first { $0.type != .other && $0.type != .loopback }
             // A failed read keeps the last lease, so the network doesn't seem to change.
-            let lease = primary.flatMap { interface in
-                let lease = Self.dhcpLease(interface) ?? Self.lastLeases[interface.name]
-                Self.lastLeases[interface.name] = lease
-                return lease
-            }
+            let lease = primary.flatMap(NetworkLease.read)
             let hotspot = path.isExpensive || lease?.metered == true
             let expensive = hotspot || path.isConstrained
             let lowData = path.isConstrained && !hotspot
@@ -107,44 +121,31 @@ final class DownloadStore {
             }
         }
         pathMonitor.start(queue: DispatchQueue(label: "Haul.network"))
+        let watch = NetworkWatch { [weak self] state in
+            DispatchQueue.main.async { MainActor.assumeIsolated { self?.networks = state } }
+        }
+        watch.start()
+        networkWatch = watch
     }
 
-    /// The router of `interface`'s DHCP lease, and whether the lease says the network is metered.
-    /// Android hotspots, Pixel's among them, say so in the vendor option, which macOS doesn't
-    /// always act on. Only `ipconfig` shows that option, so read it from its output.
-    nonisolated private static func dhcpLease(_ interface: NWInterface) -> (router: String?, metered: Bool)? {
-        guard interface.type == .wifi || interface.type == .wiredEthernet else { return nil }
-        let ipconfig = Process()
-        ipconfig.executableURL = URL(filePath: "/usr/sbin/ipconfig")
-        ipconfig.arguments = ["getpacket", interface.name]
-        let pipe = Pipe()
-        ipconfig.standardOutput = pipe
-        ipconfig.standardError = FileHandle.nullDevice
-        let exited = DispatchSemaphore(value: 0)
-        ipconfig.terminationHandler = { _ in exited.signal() }
-        guard (try? ipconfig.run()) != nil else { return nil }
-        // Network updates wait on this, so don't let a stuck ipconfig hold them up.
-        if exited.wait(timeout: .now() + 2) == .timedOut {
-            ipconfig.terminate()
-            return nil
-        }
-        let lines = String(decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
-            .split(separator: "\n").map(String.init)
+    /// Offer "Multi-network downloads" once, when there's more than one usable network to use.
+    var offersAllNetworks: Bool {
+        !settings.useAllNetworks && !settings.allNetworksOfferAnswered && usableNetworks.count > 1
+    }
 
-        let router = lines.first { $0.hasPrefix("router ") }?.split(separator: "{").last?.split(separator: "}").first.map(String.init)
-        // The vendor option is a hex dump: "0000  41 4e 44 …  4d 45 …     ANDROID_METERED". Collect
-        // the bytes from the hex columns, as the text column can wrap a value across lines.
-        var vendor: [UInt8] = []
-        if let start = lines.firstIndex(where: { $0.hasPrefix("vendor_specific ") }) {
-            for line in lines[(start + 1)...] {
-                guard line.count > 6, line.prefix(4).allSatisfy(\.isHexDigit), line.dropFirst(4).hasPrefix("  ") else { break }
-                vendor += line.dropFirst(6).prefix(49).split(separator: " ").compactMap { UInt8($0, radix: 16) }
-            }
+    /// Each network's speed summed over the downloads running on more than one; empty when none is.
+    var allNetworksSpeeds: [String: Double] {
+        downloading.reduce(into: [:]) { sum, d in
+            guard d.networkSpeeds.count > 1 else { return }
+            sum.merge(d.networkSpeeds, uniquingKeysWith: +)
         }
-        let marker = Array("ANDROID_METERED".utf8)
-        let metered = vendor.count >= marker.count
-            && (0...(vendor.count - marker.count)).contains { Array(vendor[$0..<($0 + marker.count)]) == marker }
-        return (router, metered)
+    }
+
+    /// The networks one download can use together. Metered ones count only where downloads
+    /// may use metered networks: "Pause on Personal Hotspot" is off, or Download Anyway was chosen.
+    var usableNetworks: [NetworkLink] {
+        NetworkLink.usable(networks.links, vpn: networks.vpn, proxy: proxied,
+                           allowMetered: !settings.pauseOnExpensive || allowExpensiveNetwork)
     }
 
     private func networkChanged(id: String, expensive: Bool, lowData: Bool) {
@@ -674,12 +675,82 @@ final class DownloadStore {
         guard let i = index(id) else { return }
         let d = items[i]
         if let shortfall = diskShortfall(for: d) { return fail(i, DownloadError.diskFull(shortfall)) }
-        let engine = SegmentedDownloader(url: d.url, partURL: partURL(id), segments: d.segments,
-                                         connections: d.connectionLimit, ifRange: d.etag ?? d.lastModified, browser: d.browser, limiter: limiter) { result in
+        // A proxy turned on since the last tick must not be gone around.
+        if settings.useAllNetworks { refreshProxied() }
+        let routes = routes(for: d)
+        let engine = SegmentedDownloader(url: d.url, partURL: partURL(id), segments: d.segments, connections: d.connectionLimit,
+                                         etag: d.etag, lastModified: d.lastModified, routes: routes,
+                                         browser: d.browser, limiter: limiter) { result in
             Task { @MainActor in DownloadStore.shared.engineFinished(id, result) }
         }
         engines[id] = engine
+        engineRoutes[id] = routes
+        engineAllNetworks[id] = settings.useAllNetworks
         engine.start()
+    }
+
+    /// Only Multi-network downloads and its offer depend on it.
+    private func refreshProxied() {
+        let proxied = ProxySettings.current.goesThroughProxy
+        if proxied != self.proxied { self.proxied = proxied }
+    }
+
+    private func routes(for d: Download) -> [Route] {
+        Self.routes(usableNetworks, primary: networks.primary, enabled: settings.useAllNetworks,
+                    connections: d.connectionLimit, resumable: d.resumable, signIn: d.authRealm != nil)
+    }
+
+    /// The networks a download's connections go over: with "Multi-network downloads" on, every usable
+    /// network, the default one through URLSession and the others pinned; otherwise just the default.
+    /// Only resumable downloads split across networks, and not ones that need a sign-in, which
+    /// only URLSession can answer.
+    nonisolated static func routes(_ links: [NetworkLink], primary: String?, enabled: Bool,
+                                   connections: Int, resumable: Bool, signIn: Bool) -> [Route] {
+        let links = links.filter { $0.interface != nil }
+        guard enabled, links.count > 1, connections > 1, resumable, !signIn else { return [.standard] }
+        return links.map { $0.name == primary ? Route(interface: nil, name: $0.name) : Route(interface: $0.interface, name: $0.name) }
+    }
+
+    /// Restarts running downloads whose networks have changed: a VPN came on, a network left or
+    /// joined, or the setting changed. Progress carries over; only the connections start again.
+    private func applyNetworkChanges(_ now: Date) {
+        for i in items.indices where items[i].status == .downloading {
+            let id = items[i].id
+            guard let old = engineRoutes[id], engines[id] != nil else { continue }
+            let wanted = routes(for: items[i])
+            let waiting = newRoutes[id].flatMap { $0.routes == wanted ? $0.since : nil }
+            switch Self.networkChange(from: old, to: wanted, waitingSince: waiting, now: now,
+                                      byUser: engineAllNetworks[id] != settings.useAllNetworks) {
+            case .none:
+                newRoutes[id] = nil
+                // The setting may have changed without changing this download's networks.
+                engineAllNetworks[id] = settings.useAllNetworks
+            case .waiting(let since):
+                newRoutes[id] = (wanted, since)
+            case .restart:
+                stopEngine(at: i)
+                launchEngine(id)
+            }
+        }
+    }
+
+    enum NetworkChange: Equatable {
+        case none
+        /// The new networks have been wanted since then; not long enough yet.
+        case waiting(since: Date)
+        case restart
+    }
+
+    /// What to do about a running download whose networks would now be `wanted` rather than `old`.
+    /// A network to stop using is dropped at once, so nothing more goes around a VPN that just came on,
+    /// and so is the setting being changed; a network to start using must first stay for `networkSettle`,
+    /// so one that keeps dropping out and coming back doesn't restart downloads over and over.
+    nonisolated static func networkChange(from old: [Route], to wanted: [Route], waitingSince: Date?, now: Date,
+                                          byUser: Bool) -> NetworkChange {
+        guard wanted != old else { return .none }
+        if byUser || old.contains(where: { $0.interface != nil && !wanted.contains($0) }) { return .restart }
+        guard let since = waitingSince else { return .waiting(since: now) }
+        return now.timeIntervalSince(since) >= networkSettle ? .restart : .waiting(since: since)
     }
 
     /// Whether what's saved can be continued after `error`. Not when the partial file is missing bytes,
@@ -723,18 +794,28 @@ final class DownloadStore {
             items[i].segments = engine.snapshot()
         }
         probing[id] = nil
+        engineRoutes[id] = nil
+        engineAllNetworks[id] = nil
+        newRoutes[id] = nil
+        networkSamples[id] = nil
         items[i].speed = 0
         items[i].liveConnections = 0
         items[i].writingAt = []
+        items[i].networkSpeeds = [:]
         dirty = true
     }
 
     private func engineFinished(_ id: UUID, _ result: Result<Void, Error>) {
         guard let engine = engines.removeValue(forKey: id), let i = index(id) else { return }
+        engineRoutes[id] = nil
+        engineAllNetworks[id] = nil
+        newRoutes[id] = nil
+        networkSamples[id] = nil
         items[i].segments = engine.snapshot()
         items[i].speed = 0
         items[i].liveConnections = 0
         items[i].writingAt = []
+        items[i].networkSpeeds = [:]
         dirty = true
         switch result {
         case .failure(let error):
@@ -898,7 +979,9 @@ final class DownloadStore {
             let id = items[i].id
             guard let engine = engines[id] else { continue }
             items[i].segments = engine.snapshot()
-            (items[i].liveConnections, items[i].serverLimit, items[i].writingAt) = engine.connectionState()
+            let state = engine.connectionState()
+            (items[i].liveConnections, items[i].serverLimit, items[i].writingAt) = (state.live, state.serverLimit, state.writingAt)
+            items[i].networkSpeeds = networkSpeeds(id, state.byRoute, now)
             let bytes = items[i].received
             var window = samples[id, default: []]
             window.append((bytes, now))
@@ -911,6 +994,8 @@ final class DownloadStore {
             if items[i].speed > 0 && items[i].retries > 0 { items[i].retries = 0 }
             dirty = true
         }
+        if settings.useAllNetworks || !settings.allNetworksOfferAnswered { refreshProxied() }
+        applyNetworkChanges(now)
         checkDiskSpace(now)
         retryDue(now)
         schedule()
@@ -921,6 +1006,21 @@ final class DownloadStore {
         dock.update(progress: settings.dockProgress && !downloading.isEmpty ? overallProgress : nil,
                     badge: sized ? "\(Int(overallProgress * 100))%" : "\(downloading.count)")
         if dirty { save() }
+    }
+
+    /// Each network's speed over the same window as the download's, once it uses more than one.
+    private func networkSpeeds(_ id: UUID, _ bytes: [String: Int64], _ now: Date) -> [String: Double] {
+        guard bytes.count > 1 else { return [:] }
+        var window = networkSamples[id, default: []]
+        window.append((bytes, now))
+        window.removeAll { now.timeIntervalSince($0.at) > Self.speedWindow }
+        networkSamples[id] = window
+        guard let oldest = window.first, now.timeIntervalSince(oldest.at) >= 0.4 else { return [:] }
+        let seconds = now.timeIntervalSince(oldest.at)
+        // The default route's bytes are filed under the network it goes over.
+        let primary = networks.primary ?? ""
+        return Dictionary(bytes.map { ($0.key.isEmpty ? primary : $0.key, Double($0.value - (oldest.bytes[$0.key] ?? 0)) / seconds) },
+                          uniquingKeysWith: +)
     }
 
     private func schedule() {

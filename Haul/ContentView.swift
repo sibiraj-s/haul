@@ -228,8 +228,14 @@ private struct HeaderBar: View {
 
             WindowDragArea(window: window)
 
+            if !store.allNetworksSpeeds.isEmpty {
+                AllNetworksBadge()
+            }
             if store.onExpensiveNetwork {
                 NetworkBadge()
+            }
+            if store.offersAllNetworks {
+                AllNetworksOffer()
             }
 
             Button {
@@ -385,6 +391,127 @@ private struct NetworkDetails: View {
             return ("Resume All", { store.resumeForNetwork() })
         }
         return nil
+    }
+}
+
+/// Shown while downloads run over more than one network; click for each network's share.
+private struct AllNetworksBadge: View {
+    @State private var showDetails = false
+
+    var body: some View {
+        Button {
+            showDetails.toggle()
+        } label: {
+            Image(systemName: "arrow.triangle.merge")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(Theme.accent)
+                .frame(width: 32, height: 28)
+                .background(Capsule().fill(Theme.accent.opacity(0.14)))
+        }
+        .buttonStyle(.pressable)
+        .help("Downloading over several networks")
+        .popover(isPresented: $showDetails, arrowEdge: .bottom) {
+            AllNetworksDetails()
+        }
+    }
+}
+
+/// A view of its own, so the speeds update while it's open.
+private struct AllNetworksDetails: View {
+    @Environment(DownloadStore.self) private var store
+
+    var body: some View {
+        let speeds = store.allNetworksSpeeds.sorted { $0.value > $1.value }
+        let total = speeds.reduce(0) { $0 + $1.value }
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Downloading over \(speeds.count) networks").font(.system(size: 13, weight: .semibold))
+            VStack(spacing: 8) {
+                ForEach(speeds, id: \.key) { name, speed in
+                    VStack(spacing: 4) {
+                        HStack {
+                            Text(NetworkLink.displayName(name))
+                            Spacer()
+                            Text("\(formatBytes(speed))/s").foregroundStyle(Theme.text2)
+                        }
+                        GeometryReader { geo in
+                            Capsule().fill(Theme.track)
+                                .overlay(alignment: .leading) {
+                                    Capsule().fill(Theme.accent)
+                                        .frame(width: total > 0 ? geo.size.width * speed / total : 0)
+                                }
+                        }
+                        .frame(height: 4)
+                    }
+                }
+            }
+            .font(.system(size: 12))
+            Rectangle().fill(Theme.sep).frame(height: 0.5)
+            HStack {
+                Text("Total").font(.system(size: 12, weight: .medium))
+                Spacer()
+                Text(summary(total)).font(.system(size: 12, weight: .medium))
+            }
+        }
+        .monospacedDigit()
+        .padding(14)
+        .frame(width: 260)
+    }
+
+    /// The total, and how many times what the default network brings alone.
+    private func summary(_ total: Double) -> String {
+        let line = "\(formatBytes(total))/s"
+        guard let primary = store.networks.primary, let alone = store.allNetworksSpeeds[primary], alone > 0 else {
+            return line
+        }
+        return line + " · \((total / alone).formatted(.number.precision(.fractionLength(1))))×"
+    }
+}
+
+/// Shown once, while more than one network could be used, to offer "Multi-network downloads".
+private struct AllNetworksOffer: View {
+    @Environment(DownloadStore.self) private var store
+    @State private var showDetails = false
+
+    var body: some View {
+        let names = store.usableNetworks.map { NetworkLink.displayName($0.name) }
+        Button {
+            showDetails.toggle()
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: "network").font(.system(size: 12, weight: .medium))
+                Text("\(names.count) Networks").font(.system(size: 12, weight: .medium))
+            }
+            .foregroundStyle(Theme.accent)
+            .padding(.horizontal, 10)
+            .frame(height: 28)
+            .background(Capsule().fill(Theme.accent.opacity(0.14)))
+        }
+        .buttonStyle(.pressable)
+        .help("Download over all networks")
+        .popover(isPresented: $showDetails, arrowEdge: .bottom) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Download over \(names.count) networks at once").font(.system(size: 13, weight: .semibold))
+                Text("\(names.formatted(.list(type: .and))) each have their own connection. Haul can split downloads across them to finish sooner. You can change this in Settings → Network.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Theme.text2)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack {
+                    Spacer()
+                    PillButton(title: "Not Now", height: 24, fontSize: 12) {
+                        store.settings.allNetworksOfferAnswered = true
+                        showDetails = false
+                    }
+                    PillButton(title: "Turn On", prominent: true, height: 24, fontSize: 12) {
+                        store.settings.useAllNetworks = true
+                        store.settings.allNetworksOfferAnswered = true
+                        showDetails = false
+                    }
+                }
+                .padding(.top, 4)
+            }
+            .padding(14)
+            .frame(width: 280)
+        }
     }
 }
 

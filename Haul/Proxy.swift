@@ -50,6 +50,26 @@ nonisolated struct ProxySettings: Sendable, Equatable {
         return .hostPort(host: .init(host), port: port)
     }
 
+    /// Downloads go through a proxy: the custom one, or the system's when following it, as a custom
+    /// one that isn't filled in yet does (see `apply(to:)`).
+    var goesThroughProxy: Bool { goesThroughProxy(system: CFNetworkCopySystemProxySettings()?.takeRetainedValue() as? [String: Any] ?? [:]) }
+
+    /// `goesThroughProxy` with the system's proxy settings being `system`.
+    func goesThroughProxy(system: @autoclosure () -> [String: Any]) -> Bool {
+        switch mode {
+        case .none: false
+        case .custom where endpoint != nil: true
+        case .custom, .system: Self.hasProxy(system())
+        }
+    }
+
+    /// Whether the system's proxy settings turn any proxy on, automatic configuration included.
+    static func hasProxy(_ system: [String: Any]) -> Bool {
+        let switches = [kCFNetworkProxiesHTTPEnable, kCFNetworkProxiesHTTPSEnable, kCFNetworkProxiesSOCKSEnable,
+                        kCFNetworkProxiesProxyAutoConfigEnable, kCFNetworkProxiesProxyAutoDiscoveryEnable]
+        return switches.contains { (system[$0 as String] as? NSNumber)?.boolValue == true }
+    }
+
     /// Points a session at the proxy. A custom proxy that isn't filled in yet leaves the
     /// system's settings in place rather than failing every download.
     func apply(to config: URLSessionConfiguration) {

@@ -241,6 +241,7 @@ export const defaultSettings = {
   scheduleFrom: 1,
   scheduleTo: 7,
   pauseOnExpensive: true,
+  useAllNetworks: false,
   autoRetry: true,
   skipWebPages: true,
 }

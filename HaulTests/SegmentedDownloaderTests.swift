@@ -172,7 +172,7 @@ struct SegmentedDownloaderTests {
         var engine: SegmentedDownloader?
         let result = await withCheckedContinuation { continuation in
             engine = SegmentedDownloader(url: url, partURL: partURL, segments: segments, connections: connections,
-                                         ifRange: nil, browser: nil, limiter: RateLimiter(), configuration: config) {
+                                         browser: nil, limiter: RateLimiter(), configuration: config) {
                 continuation.resume(returning: $0)
             }
             engine!.start()
@@ -263,7 +263,7 @@ struct SegmentedDownloaderTests {
         config.protocolClasses = [RangeServer.self]
         let engine = SegmentedDownloader(url: RangeServer.serve(host), partURL: part,
                                          segments: Segment.split(size: size, connections: 3, resumable: true), connections: 3,
-                                         ifRange: nil, browser: nil, limiter: RateLimiter(), configuration: config) { _ in }
+                                         browser: nil, limiter: RateLimiter(), configuration: config) { _ in }
         engine.start()
         defer { engine.cancel() }
         var at: [Int64] = []

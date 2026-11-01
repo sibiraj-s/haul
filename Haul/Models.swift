@@ -222,6 +222,8 @@ struct Download: Codable, Identifiable {
     var serverLimit: Int?
     /// The file offset each downloading connection writes next.
     var writingAt: [Int64] = []
+    /// Speed over each network, by interface name, while the download uses more than one.
+    var networkSpeeds: [String: Double] = [:]
     /// When the current run started; used to pick which downloads go back to the queue
     /// when the simultaneous-download limit is lowered.
     var startedAt: Date?

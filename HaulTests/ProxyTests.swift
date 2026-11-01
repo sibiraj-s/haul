@@ -22,6 +22,25 @@ struct ProxyTests {
         #expect(custom("proxy.example.com", port: 70_000).endpoint == nil)
     }
 
+    @Test func goesThroughProxyOnlyWhenOneIsUsed() {
+        let systemProxy: [String: Any] = ["HTTPSEnable": 1]
+        #expect(custom("proxy.example.com").goesThroughProxy(system: [:]))
+        #expect(!custom("").goesThroughProxy(system: [:]))
+        #expect(!ProxySettings(mode: .none).goesThroughProxy(system: systemProxy))
+        #expect(ProxySettings(mode: .system).goesThroughProxy(system: systemProxy))
+        // A custom proxy that isn't filled in leaves the system's in place, so that one counts.
+        #expect(custom("").goesThroughProxy(system: systemProxy))
+    }
+
+    @Test func systemProxyCountsAnyKindTurnedOn() {
+        #expect(!ProxySettings.hasProxy([:]))
+        #expect(!ProxySettings.hasProxy(["HTTPEnable": 0, "HTTPSEnable": 0, "ExceptionsList": ["*.local"]]))
+        #expect(ProxySettings.hasProxy(["HTTPSEnable": 1]))
+        #expect(ProxySettings.hasProxy(["SOCKSEnable": 1]))
+        #expect(ProxySettings.hasProxy(["ProxyAutoConfigEnable": 1]))
+        #expect(ProxySettings.hasProxy(["ProxyAutoDiscoveryEnable": 1]))
+    }
+
     @Test func systemLeavesSessionAlone() {
         let config = URLSessionConfiguration.default
         ProxySettings().apply(to: config)

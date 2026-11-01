@@ -305,6 +305,10 @@ haul --version`}</Pre>
               'Pause on Personal Hotspot',
               'Downloads wait while on Personal Hotspot or Low Data Mode. Click the badge in the toolbar to download anyway.',
             ],
+            [
+              'Multi-network downloads',
+              'Splits each download across Wi‑Fi, Ethernet and USB tethering at once, for when one network alone is slower than the server. Each network is checked to serve the same file before it’s used. Off while a VPN or proxy is on, and metered networks are left out while Pause on Personal Hotspot is on. Click the badge in the toolbar to see each network’s speed.',
+            ],
             ['Retry failed downloads', 'Retries a few times after a dropped connection or server error.'],
             [
               'Proxy',

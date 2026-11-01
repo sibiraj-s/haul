@@ -5,7 +5,7 @@ const features: { Icon: ComponentType<{ className?: string }>; title: string; bo
   {
     Icon: ConnectionsIcon,
     title: 'Multi-connection speed',
-    body: 'Up to 16 connections per file. Big downloads finish much faster.',
+    body: 'Up to 16 connections per file, even over Wi‑Fi, Ethernet and tethering at once. Big downloads finish much faster.',
   },
   {
     Icon: PauseIcon,

@@ -77,6 +77,10 @@ final class AppSettings {
     var scheduleFrom: Int { didSet { save(scheduleFrom, "scheduleFrom") } }
     var scheduleTo: Int { didSet { save(scheduleTo, "scheduleTo") } }
     var pauseOnExpensive: Bool { didSet { save(pauseOnExpensive, "pauseOnExpensive") } }
+    /// Spread each download's connections over every usable network at once.
+    var useAllNetworks: Bool { didSet { save(useAllNetworks, "useAllNetworks") } }
+    /// The offer to turn on `useAllNetworks` was answered, so it isn't shown again.
+    var allNetworksOfferAnswered: Bool { didSet { save(allNetworksOfferAnswered, "allNetworksOfferAnswered") } }
     /// Keep the Mac from idle-sleeping while something is downloading.
     var preventSleep: Bool { didSet { save(preventSleep, "preventSleep") } }
     var removeFinished: ListCleanup { didSet { save(removeFinished.rawValue, "removeFinished") } }
@@ -153,6 +157,8 @@ final class AppSettings {
         scheduleFrom = d.object(forKey: "scheduleFrom") as? Int ?? 1
         scheduleTo = d.object(forKey: "scheduleTo") as? Int ?? 7
         pauseOnExpensive = d.object(forKey: "pauseOnExpensive") as? Bool ?? true
+        useAllNetworks = d.object(forKey: "useAllNetworks") as? Bool ?? false
+        allNetworksOfferAnswered = d.object(forKey: "allNetworksOfferAnswered") as? Bool ?? false
         preventSleep = d.object(forKey: "preventSleep") as? Bool ?? true
         let cleanup = d.string(forKey: "removeFinished") ?? ""
         removeFinished = ListCleanup(rawValue: cleanup) ?? .afterDays
