@@ -2,6 +2,8 @@ import { useEffect, useRef } from 'react'
 import { links } from '../links'
 import { Bar, Checkbox, cx, FileIcon, Glyph, Group, ICON, Pill, PopUp, Segmented } from './controls'
 import {
+  canExtract,
+  extractedName,
   fmtBytes,
   fmtDuration,
   folderFor,
@@ -11,6 +13,7 @@ import {
   progress,
   STATUS_LABEL,
   statusLine,
+  WHEN_DONE,
   type Download,
   type Filter,
   type Kind,
@@ -320,12 +323,9 @@ function Inspector({ demo }: { demo: Demo }) {
   const connections = live
     ? `${live} of ${d.segs.length} connections`
     : `${d.segs.length} connection${d.segs.length === 1 ? '' : 's'}`
-  const speed =
-    d.status === 'downloading' && d.speed > 0
-      ? `${fmtBytes(d.speed)}/s · ${fmtDuration((d.size * (1 - p)) / d.speed)} left`
-      : d.status === 'completed'
-        ? 'Done'
-        : '—'
+  const running = d.status === 'downloading' && d.speed > 0
+  const speed = running ? `${fmtBytes(d.speed)}/s` : d.status === 'completed' ? 'Done' : '—'
+  const timeLeft = running ? `${fmtDuration((d.size * (1 - p)) / d.speed)} left` : ''
   const checksum: [string, string] =
     d.status !== 'completed'
       ? ['After download', 'var(--text2)']
@@ -343,7 +343,7 @@ function Inspector({ demo }: { demo: Demo }) {
 
   const detail = (label: string, value: React.ReactNode) => (
     <div className="flex items-baseline gap-2.5 px-2.5 py-2">
-      <span className="w-15.5 flex-none text-text2">{label}</span>
+      <span className="w-17 flex-none text-text2">{label}</span>
       <span className="min-w-0 flex-1">{value}</span>
     </div>
   )
@@ -379,9 +379,12 @@ function Inspector({ demo }: { demo: Demo }) {
             </div>
           ))}
         </div>
-        <div className="flex justify-between text-text2">
-          <span>{connections}</span>
-          <span>{speed}</span>
+        <div className="flex flex-col gap-0.75 text-text2">
+          <div className="flex justify-between">
+            <span>{connections}</span>
+            <span>{speed}</span>
+          </div>
+          <div className="text-right">{timeLeft || '\u00a0'}</div>
         </div>
       </div>
 
@@ -414,6 +417,20 @@ function Inspector({ demo }: { demo: Demo }) {
             {checksum[0]}
           </span>,
         )}
+        {d.extract &&
+          canExtract(d.name) &&
+          detail(
+            'Extract',
+            d.status === 'completed' ? (
+              <span className="block truncate text-accent">{extractedName(d.name)}</span>
+            ) : (
+              <span className="text-text2">After download</span>
+            ),
+          )}
+        {d.whenDone &&
+          d.whenDone !== 'nothing' &&
+          d.status !== 'completed' &&
+          detail('When done', WHEN_DONE.find(([v]) => v === d.whenDone)![1])}
       </Group>
 
       <div className="flex flex-col gap-1.5 px-3 pt-3.5 pb-4">
@@ -471,7 +488,10 @@ function AddPanel({ demo }: { demo: Demo }) {
     ? `Add ${fresh.length} Download${fresh.length === 1 ? '' : 's'}`
     : state.addStart
       ? 'Download'
-      : 'Add to Queue'
+      : 'Add'
+  const offersExtract = batch
+    ? fresh.some((c) => canExtract(c.name))
+    : !!single && !blockedWebPage && canExtract(single.name)
 
   return (
     <>
@@ -548,12 +568,34 @@ function AddPanel({ demo }: { demo: Demo }) {
               minWidth={38}
             />
           </div>
-          <span />
+          <span className="text-text2">When done</span>
           <div className="justify-self-start">
-            <Checkbox on={state.addStart} onChange={(on) => update(() => ({ addStart: on }))}>
-              Start immediately
-            </Checkbox>
+            <Segmented
+              options={WHEN_DONE}
+              value={state.addWhenDone}
+              onChange={(v) => update(() => ({ addWhenDone: v }))}
+            />
           </div>
+          {offersExtract && (
+            <>
+              <span />
+              <div className="justify-self-start" title="Unpacks it next to the archive, which is kept.">
+                <Checkbox on={state.addExtract} onChange={(on) => update(() => ({ addExtract: on }))}>
+                  {batch ? 'Extract archives when finished' : 'Extract when finished'}
+                </Checkbox>
+              </div>
+            </>
+          )}
+          {!batch && (
+            <>
+              <span />
+              <div className="justify-self-start">
+                <Checkbox on={state.addStart} onChange={(on) => update(() => ({ addStart: on }))}>
+                  Start immediately
+                </Checkbox>
+              </div>
+            </>
+          )}
         </div>
 
         <div className="mt-1 flex justify-end gap-2">

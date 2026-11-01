@@ -91,6 +91,9 @@ export type Download = {
   max: number
   sha256: string | null
   error: string | null
+  /// Chosen in the Add panel: extract once finished (archives only), and what to do then.
+  extract?: boolean
+  whenDone?: WhenDone
 }
 
 // Fixed offsets so segments look like they started at slightly different times.
@@ -194,7 +197,11 @@ export function seed(): Download[] {
 
 export type Appearance = 'light' | 'dark' | 'auto'
 export type Accent = 'blue' | 'purple' | 'pink' | 'graphite'
-export type ListCleanup = 'manually' | 'whenFinished' | 'day' | 'week' | 'month'
+export type ListCleanup = 'manually' | 'whenFinished' | 'afterDays'
+export type WhenDone = 'nothing' | 'open' | 'reveal'
+export type ProxyMode = 'system' | 'none' | 'custom'
+export type ProxyKind = 'http' | 'socks'
+export type RemoteScope = 'thisMac' | 'network'
 
 export const ACCENTS: Record<Accent, string> = {
   blue: '#0a7aff',
@@ -203,15 +210,29 @@ export const ACCENTS: Record<Accent, string> = {
   graphite: '#7d7d84',
 }
 
-export const LIST_CLEANUP: [ListCleanup, string][] = [
-  ['manually', 'Manually'],
-  ['whenFinished', 'When Finished'],
-  ['day', 'After One Day'],
-  ['week', 'After One Week'],
-  ['month', 'After One Month'],
+export const WHEN_DONE: [WhenDone, string][] = [
+  ['nothing', 'Do Nothing'],
+  ['open', 'Open'],
+  ['reveal', 'Show in Finder'],
 ]
 
+export const PROXY_PORT: Record<ProxyKind, number> = { http: 8080, socks: 1080 }
+
 export const MAX_RETRIES = 3
+
+/// Archive endings Haul can extract (Extractor.endings), longest first.
+const ARCHIVE_ENDINGS = ['.tar.gz', '.tar.bz2', '.tar.xz', '.zip', '.tar', '.tgz', '.tbz', '.tbz2', '.txz', '.7z']
+const archiveEnding = (name: string) => {
+  const lower = name.toLowerCase()
+  return ARCHIVE_ENDINGS.find((e) => lower.endsWith(e) && lower.length > e.length)
+}
+export const canExtract = (name: string) => archiveEnding(name) !== undefined
+/// "app.tar.gz" → "app", like Extractor.baseName.
+export const extractedName = (name: string) => name.slice(0, name.length - (archiveEnding(name)?.length ?? 0))
+
+/// Like RemoteAPI.newPassword.
+export const newPassword = () =>
+  Array.from({ length: 16 }, () => 'abcdefghjkmnpqrstuvwxyz23456789'[Math.floor(Math.random() * 31)]).join('')
 
 /// Defaults match AppSettings.init.
 export const defaultSettings = {
@@ -221,8 +242,10 @@ export const defaultSettings = {
   dockProgress: true,
   launchAtLogin: false,
   confirmRemove: true,
-  removeFinished: 'manually' as ListCleanup,
+  removeFinished: 'afterDays' as ListCleanup,
+  removeAfterDays: 90,
   removeDeleted: true,
+  trashOnRemove: false,
   checkForUpdates: true,
   notifyAdded: false,
   notify: true,
@@ -244,6 +267,19 @@ export const defaultSettings = {
   useAllNetworks: false,
   autoRetry: true,
   skipWebPages: true,
+  extractArchives: false,
+  whenDone: 'nothing' as WhenDone,
+  proxyMode: 'system' as ProxyMode,
+  proxyKind: 'http' as ProxyKind,
+  proxyHost: '',
+  proxyPort: PROXY_PORT.http,
+  proxyUser: '',
+  proxyPassword: '',
+  proxyBypass: '',
+  remoteOn: false,
+  remoteScope: 'thisMac' as RemoteScope,
+  remotePort: 7878,
+  remotePassword: newPassword(),
 }
 
 export type Settings = typeof defaultSettings

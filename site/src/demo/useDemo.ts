@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
+  canExtract,
   clockTime,
   defaultSettings,
   fakeHash,
@@ -16,7 +17,7 @@ import {
   type Settings,
 } from './model'
 
-export type Pane = 'general' | 'downloads' | 'network' | 'notifications' | 'about'
+export type Pane = 'general' | 'downloads' | 'network' | 'remote' | 'notifications' | 'extensions' | 'about'
 export type Note = { key: string; itemId: number; title: string; name: string; sub: string; at: number }
 
 const TICK = 500
@@ -36,8 +37,12 @@ function initialState() {
     addText: 'https://mirror.example.net/films/sintel-2010-4k.mkv',
     addConns: defaultSettings.connections,
     addStart: true,
+    addExtract: defaultSettings.extractArchives,
+    addWhenDone: defaultSettings.whenDone,
     settingsOpen: false,
     pane: 'general' as Pane,
+    /// Haul's Safari extension, turned on from the Extensions pane.
+    safariOn: false,
     menu: null as 'app' | 'extra' | null,
     confirmRemove: null as number | null,
     notes: [] as Note[],
@@ -159,20 +164,41 @@ export function useDemo() {
     /// Asks first when "Ask before removing downloads" is on, like DownloadStore.requestRemove.
     requestRemove: (id: number) =>
       update((s) => (s.settings.confirmRemove ? { confirmRemove: id } : removeItem(s, id))),
-    remove: (id: number) => update((s) => ({ ...removeItem(s, id), confirmRemove: null })),
+    /// From the remove alert; `trash` is its "Also move the file to the Trash" choice, remembered
+    /// like AppSettings.trashOnRemove (there's no real file to move here).
+    remove: (id: number, trash?: boolean) =>
+      update((s) => ({
+        ...removeItem(s, id),
+        confirmRemove: null,
+        settings: trash === undefined ? s.settings : { ...s.settings, trashOnRemove: trash },
+      })),
 
     openAdd: () =>
-      update((s) => ({ addOpen: true, winOpen: true, front: 'main', menu: null, addConns: s.settings.connections })),
+      update((s) => ({
+        addOpen: true,
+        winOpen: true,
+        front: 'main',
+        menu: null,
+        addConns: s.settings.connections,
+        addExtract: s.settings.extractArchives,
+        addWhenDone: s.settings.whenDone,
+      })),
 
     confirmAdd: () =>
       update((s) => {
         const links = splitNew(s)
         if (!links.length) return {}
         const now = Date.now()
+        // Like AddDownloadPanel.confirm: a batch is queued so the simultaneous limit applies;
+        // one link starts now, or is added paused.
+        const batch = addCandidates(s.addText).length > 1
+        const offersExtract = links.some((p) => canExtract(p.name))
         const created: Download[] = links.map((p, i) => ({
           id: now + i,
           ...p,
-          status: s.addStart ? 'downloading' : 'queued',
+          status: batch ? 'queued' : s.addStart ? 'downloading' : 'paused',
+          extract: offersExtract && s.addExtract && canExtract(p.name),
+          whenDone: s.addWhenDone,
           added: 'Today, ' + clockTime(),
           segs: makeSegs(0, s.addConns),
           speed: 0,
@@ -187,7 +213,20 @@ export function useDemo() {
                 ...s.notes,
               ].slice(0, 3)
             : s.notes
-        return { items: [...created, ...s.items], sel: created[0].id, addOpen: false, filter: 'all', query: '', notes }
+        const settings = {
+          ...s.settings,
+          whenDone: s.addWhenDone,
+          extractArchives: offersExtract ? s.addExtract : s.settings.extractArchives,
+        }
+        return {
+          items: [...created, ...s.items],
+          sel: created[0].id,
+          addOpen: false,
+          filter: 'all',
+          query: '',
+          notes,
+          settings,
+        }
       }),
 
     copyLink: (url: string) => {

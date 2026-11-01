@@ -1,4 +1,4 @@
-import { AppTile, Bar, cx, FileIcon, Glyph, ICON, Pill } from './controls'
+import { AppTile, Bar, Checkbox, cx, FileIcon, Glyph, ICON, Pill } from './controls'
 import { subtitle } from './MainWindow'
 import { fmtBytes, folderFor, statusLine } from './model'
 import { isUnfinished, progress, type Demo } from './useDemo'
@@ -212,10 +212,12 @@ export function RemoveAlert({ demo }: { demo: Demo }) {
   const { state, update } = demo
   const d = state.items.find((x) => x.id === state.confirmRemove)
   if (!d) return null
-  const detail =
-    d.status === 'completed'
-      ? `The file stays in ${folderFor(state.settings, d.kind)}.`
-      : "What's been downloaded so far will be deleted."
+  // As DownloadStore.requestRemove words it; a finished download offers to trash its file too.
+  const hasFile = d.status === 'completed'
+  const detail = hasFile
+    ? `Removes it from the list. The file is in ${folderFor(state.settings, d.kind)}.`
+    : "What's been downloaded so far will be deleted."
+  const trash = state.settings.trashOnRemove
   const cancel = () => update(() => ({ confirmRemove: null }))
   return (
     <>
@@ -224,17 +226,24 @@ export function RemoveAlert({ demo }: { demo: Demo }) {
         <AppTile size={48} radius={11} glyph={28} />
         <div className="mt-1 font-bold wrap-break-word">Remove “{d.name}”?</div>
         <div className="text-[11px] text-text2">{detail}</div>
+        {hasFile && (
+          <div className="mt-1 text-[11px]">
+            <Checkbox on={trash} onChange={(on) => demo.setSetting('trashOnRemove', on)}>
+              Also move the file to the Trash
+            </Checkbox>
+          </div>
+        )}
         <button
           onClick={() => {
             demo.setSetting('confirmRemove', false)
-            demo.remove(d.id)
+            demo.remove(d.id, hasFile ? trash : undefined)
           }}
           className="mt-1 text-[11px] text-text2 underline-offset-2 hover:underline"
         >
           Don't ask again
         </button>
         <div className="mt-1 flex w-full flex-col gap-1.5">
-          <Pill prominent className="w-full bg-red" onClick={() => demo.remove(d.id)}>
+          <Pill prominent className="w-full bg-red" onClick={() => demo.remove(d.id, hasFile ? trash : undefined)}>
             Remove
           </Pill>
           <Pill className="w-full" onClick={cancel}>
