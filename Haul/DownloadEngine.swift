@@ -94,7 +94,7 @@ nonisolated enum DownloadError: LocalizedError {
         case .noRangeSupport: "Server doesn't support resuming"
         case .truncated: "Connection closed before the file finished"
         case .wrongRange: "Server sent a different part of the file than was asked for"
-        case .incomplete: "Parts of the file are missing, so it wasn't saved. Restart the download"
+        case .incomplete: "Parts of the file were missing, so it wasn't saved. Retry downloads it again"
         case .throttled(_, let status): DownloadError.http(status).errorDescription
         }
     }
@@ -254,9 +254,8 @@ nonisolated final class SegmentedDownloader: NSObject, URLSessionDataDelegate, @
     /// TCP connection; one shared session would multiplex every request over a single HTTP/2 connection.
     private var sessions: [URLSession] = []
     private var handle: FileHandle?
-    /// The segment each running task downloads, and the slot whose session it runs on.
-    private var tasks: [URLSessionTask: Int] = [:]
-    private var slots: [URLSessionTask: Int] = [:]
+    /// Each running task: the segment it downloads, the slot whose session it runs on, and the byte it started at.
+    private var tasks: [URLSessionTask: (segment: Int, slot: Int, from: Int64)] = [:]
     private var pending: [Int] = []
     private var sleeping = 0
     private var maxParallel: Int
@@ -273,6 +272,8 @@ nonisolated final class SegmentedDownloader: NSObject, URLSessionDataDelegate, @
 
     /// Segments with less than this left aren't split further: a new connection's setup costs more than it saves.
     static let minimumSplit: Int64 = 4 * 1024 * 1024
+    /// A dropped connection that got at least this far gives its segment a fresh run of retries.
+    static let progressThatRefillsRetries: Int64 = 1024 * 1024
 
     /// `ifRange` is the ETag or Last-Modified captured when the download started; ranged
     /// requests carry it so a server whose file has changed answers 200 instead of a mismatched range.
@@ -385,7 +386,7 @@ nonisolated final class SegmentedDownloader: NSObject, URLSessionDataDelegate, @
     /// accepted are split, so a throttling server isn't sent more.
     private func splitForIdleSlot() -> Bool {
         guard maxParallel > 1, pending.isEmpty, sleeping == 0 else { return false }
-        let running = tasks.filter { confirmed.contains($0.key) }.values
+        let running = tasks.filter { confirmed.contains($0.key) }.values.map(\.segment)
         guard let added = lock.withLock({ Segment.splitLargest(&segments, running: running, minimum: Self.minimumSplit) })
         else { return false }
         pending.append(added)
@@ -407,7 +408,7 @@ nonisolated final class SegmentedDownloader: NSObject, URLSessionDataDelegate, @
 
     private func launch(_ index: Int) {
         // The server may have lowered the limit, so slots past it stay unused.
-        let used = Set(slots.values)
+        let used = Set(tasks.values.map(\.slot))
         guard !isStopped, let slot = sessions.indices.first(where: { !used.contains($0) }) else { return }
         let s = current[index]
         var request = URLRequest(url: url)
@@ -423,15 +424,14 @@ nonisolated final class SegmentedDownloader: NSObject, URLSessionDataDelegate, @
             request.setValue(ifRange, forHTTPHeaderField: "If-Range")
         }
         let task = sessions[slot].dataTask(with: request)
-        tasks[task] = index
-        slots[task] = slot
+        tasks[task] = (index, slot, from)
         if let end = s.end { requestedEnds[task] = end }
         task.resume()
     }
 
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse,
                     completionHandler: @escaping @Sendable (URLSession.ResponseDisposition) -> Void) {
-        guard let index = tasks[dataTask] else { return completionHandler(.cancel) }
+        guard let index = tasks[dataTask]?.segment else { return completionHandler(.cancel) }
         if let http = response as? HTTPURLResponse {
             if http.statusCode == 429 || http.statusCode == 503 {
                 let wait = http.value(forHTTPHeaderField: "Retry-After").flatMap(Double.init) ?? 5
@@ -451,8 +451,9 @@ nonisolated final class SegmentedDownloader: NSObject, URLSessionDataDelegate, @
                 rejected[dataTask] = ifRange != nil ? DownloadError.fileChanged : DownloadError.noRangeSupport
                 return completionHandler(.cancel)
             }
-            // Offsets in a compressed reply don't match the bytes URLSession hands over after decompressing.
-            if ranged && Probe.isEncoded(http) {
+            // Offsets in a compressed partial reply don't match the bytes URLSession hands over after
+            // decompressing. A whole-file 200 from byte 0 is fine: decompressed, it's the file.
+            if http.statusCode == 206 && Probe.isEncoded(http) {
                 rejected[dataTask] = DownloadError.noRangeSupport
                 return completionHandler(.cancel)
             }
@@ -476,7 +477,7 @@ nonisolated final class SegmentedDownloader: NSObject, URLSessionDataDelegate, @
     }
 
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
-        guard let index = tasks[dataTask], let handle, !isStopped else { return }
+        guard let index = tasks[dataTask]?.segment, let handle, !isStopped else { return }
         let s = current[index]
         let offset = s.start + s.done
         var chunk = data
@@ -496,17 +497,13 @@ nonisolated final class SegmentedDownloader: NSObject, URLSessionDataDelegate, @
             segments[index].done += Int64(chunk.count)
             return segments[index].isComplete
         }
-        // The connection is moving the segment forward, so a later drop starts a fresh run of retries;
-        // the limit is for connections that keep failing, not for long downloads on a flaky network.
-        attempts[index] = nil
         limiter.throttle(chunk.count)
         // A split moved this segment's end short of the range asked for; stop before reading into the other half.
         if complete, let asked = requestedEnds[dataTask], asked != s.end { dataTask.cancel() }
     }
 
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
-        slots[task] = nil
-        guard let index = tasks.removeValue(forKey: task), !isStopped else { return }
+        guard let (index, _, from) = tasks.removeValue(forKey: task), !isStopped else { return }
         lock.withLock { _ = writing.remove(index) }
         let rejection = rejected.removeValue(forKey: task)
         confirmed.remove(task)
@@ -545,6 +542,10 @@ nonisolated final class SegmentedDownloader: NSObject, URLSessionDataDelegate, @
         let wrongRange = if case .wrongRange? = rejection as? DownloadError { true } else { false }
         if let rejection, !wrongRange { return finish(.failure(rejection)) }
 
+        // A connection that moved its segment well forward before dropping starts a fresh run of retries:
+        // the limit is for connections that keep failing, not for long downloads on a flaky network.
+        // Only real progress counts, so one cut off after every few bytes still runs out.
+        if current[index].start + current[index].done - from >= Self.progressThatRefillsRetries { attempts[index] = nil }
         let attempt = (attempts[index] ?? 0) + 1
         attempts[index] = attempt
         guard attempt <= 5 else { return finish(.failure(rejection ?? error ?? DownloadError.truncated)) }

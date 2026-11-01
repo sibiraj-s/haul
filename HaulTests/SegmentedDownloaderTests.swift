@@ -24,6 +24,8 @@ nonisolated final class RangeServer: URLProtocol, @unchecked Sendable {
         /// This many connections drop after sending `dropAfter` bytes, as on a flaky network.
         var drops = 0
         var dropAfter: Int64 = 1024 * 1024
+        /// Ignores Range and answers every request with the whole file and a 200.
+        var ignoreRange = false
 
         let lock = NSLock()
         /// The Accept-Encoding of every request, in order.
@@ -89,6 +91,7 @@ nonisolated final class RangeServer: URLProtocol, @unchecked Sendable {
             return true
         }
         if misplaced { (start, end) = (0, end - start) }
+        if host.ignoreRange { (start, end) = (0, host.size - 1) }
 
         let throttled = host.lock.withLock {
             let refused = host.refuse[start, default: 0] > 0
@@ -112,12 +115,11 @@ nonisolated final class RangeServer: URLProtocol, @unchecked Sendable {
             client!.urlProtocolDidFinishLoading(self)
             return
         }
-        var headers = [
-            "Content-Range": "bytes \(start)-\(end)/\(host.reportedSize ?? host.size)",
-            "Content-Length": "\(end - start + 1)",
-        ]
+        var headers = ["Content-Length": "\(end - start + 1)"]
+        if !host.ignoreRange { headers["Content-Range"] = "bytes \(start)-\(end)/\(host.reportedSize ?? host.size)" }
         if let encoding = host.encoding { headers["Content-Encoding"] = encoding }
-        let response = HTTPURLResponse(url: url, statusCode: 206, httpVersion: "HTTP/1.1", headerFields: headers)!
+        let response = HTTPURLResponse(url: url, statusCode: host.ignoreRange ? 200 : 206, httpVersion: "HTTP/1.1",
+                                       headerFields: headers)!
         client!.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
         send(from: start, to: end, wait: host.delay(start))
     }
@@ -133,8 +135,12 @@ nonisolated final class RangeServer: URLProtocol, @unchecked Sendable {
                 host.drops -= 1
                 return true
             }) {
-                finish()
-                client!.urlProtocol(self, didFailWithError: URLError(.networkConnectionLost))
+                // A moment after the data, so it's delivered before the error rather than discarded with it.
+                DispatchQueue.global().asyncAfter(deadline: .now() + 0.05) { [self] in
+                    guard !stopLock.withLock({ stopped }) else { return }
+                    finish()
+                    client!.urlProtocol(self, didFailWithError: URLError(.networkConnectionLost))
+                }
             } else if last == end {
                 finish()
                 client!.urlProtocolDidFinishLoading(self)
@@ -396,6 +402,41 @@ struct SegmentedDownloaderTests {
                                                 connections: 1, partURL: part)
         try result.get()
         #expect(host.lock.withLock { host.drops } == 0)
+        expectWhole(segments, size: size)
+        #expect(try Data(contentsOf: part) == RangeServer.content(0...size - 1))
+    }
+
+    @Test func connectionsCutOffAfterAFewBytesRunOutOfRetries() async {
+        let size = 8 * Self.mb
+        // Every connection drops after one 256 KB chunk: too little progress to refill the retries.
+        let host = RangeServer.Host(size: size) { _ in 0.003 }
+        host.drops = 10
+        host.dropAfter = 256 * 1024
+        let part = partURL()
+        defer { try? FileManager.default.removeItem(at: part) }
+
+        let (result, _, _) = await download(RangeServer.serve(host), segments: Segment.split(size: size, connections: 1, resumable: true),
+                                         connections: 1, partURL: part)
+        guard case .failure(let error) = result, (error as? URLError)?.code == .networkConnectionLost else {
+            Issue.record("expected the dropped connection's error, got \(result)")
+            return
+        }
+        // The first try and five retries.
+        #expect(host.lock.withLock { host.requests.count } == 6)
+    }
+
+    @Test func compressedWholeFileFromTheStartIsWritten() async throws {
+        let size = 4 * Self.mb
+        // Asked for a range, the server sends the whole file compressed; decompressed, it's the file.
+        let host = RangeServer.Host(size: size) { _ in 0.003 }
+        host.ignoreRange = true
+        host.encoding = "gzip"
+        let part = partURL()
+        defer { try? FileManager.default.removeItem(at: part) }
+
+        let (result, segments, _) = await download(RangeServer.serve(host), segments: Segment.split(size: size, connections: 1, resumable: true),
+                                                connections: 1, partURL: part)
+        try result.get()
         expectWhole(segments, size: size)
         #expect(try Data(contentsOf: part) == RangeServer.content(0...size - 1))
     }

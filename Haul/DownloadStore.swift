@@ -682,6 +682,15 @@ final class DownloadStore {
         engine.start()
     }
 
+    /// Whether what's saved can be continued after `error`. Not when the partial file is missing bytes,
+    /// or the server can't send the rest of it: retrying those same parts would fail the same way.
+    nonisolated static func canContinue(after error: Error) -> Bool {
+        switch error as? DownloadError {
+        case .incomplete, .noRangeSupport: false
+        default: true
+        }
+    }
+
     private func fail(_ i: Int, _ error: Error) {
         items[i].status = .failed
         items[i].error = error.localizedDescription
@@ -695,6 +704,8 @@ final class DownloadStore {
             items[i].authDigest = digest
         default: items[i].issue = nil
         }
+        // Retry then probes again and starts from the beginning.
+        if !Self.canContinue(after: error) { items[i].segments = [] }
         if settings.autoRetry && DownloadError.isTransient(error) && items[i].retries < Self.maxRetries {
             items[i].retryAt = .now + Self.retryDelays[items[i].retries]
             items[i].retries += 1

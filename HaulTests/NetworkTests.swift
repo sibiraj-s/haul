@@ -97,6 +97,14 @@ struct RetryTests {
         #expect(DownloadError.isTransient(URLError(code)) == transient)
     }
 
+    @Test func progressIsDroppedOnlyWhenItCantBeContinued() {
+        #expect(!DownloadStore.canContinue(after: DownloadError.incomplete))
+        #expect(!DownloadStore.canContinue(after: DownloadError.noRangeSupport))
+        #expect(DownloadStore.canContinue(after: DownloadError.wrongRange))
+        #expect(DownloadStore.canContinue(after: DownloadError.fileChanged))
+        #expect(DownloadStore.canContinue(after: URLError(.networkConnectionLost)))
+    }
+
     @Test func otherErrorsAreNotRetried() {
         #expect(!DownloadError.isTransient(CocoaError(.fileWriteOutOfSpace)))
     }
