@@ -25,6 +25,8 @@ nonisolated final class RangeServer: URLProtocol, @unchecked Sendable {
         let lock = NSLock()
         /// The Accept-Encoding of every request, in order.
         var acceptEncodings: [String?] = []
+        /// The task identifier of every request, in order. Each session numbers its tasks from 1.
+        var taskIDs: [Int?] = []
         var requests: [(start: Int64, status: Int, at: Date)] = []
         var active = 0
         var maxActive = 0
@@ -89,6 +91,7 @@ nonisolated final class RangeServer: URLProtocol, @unchecked Sendable {
             let throttled = refused || host.active >= host.limit
             host.requests.append((start, throttled ? 429 : 206, Date()))
             host.acceptEncodings.append(request.value(forHTTPHeaderField: "Accept-Encoding"))
+            host.taskIDs.append(task?.taskIdentifier)
             if !throttled {
                 host.active += 1
                 host.maxActive = max(host.maxActive, host.active)
@@ -360,6 +363,24 @@ struct SegmentedDownloaderTests {
 
         let (result, _, _) = await download(RangeServer.serve(host), segments: segments, connections: 1, partURL: part)
         try result.get()
+        #expect(try Data(contentsOf: part) == RangeServer.content(0...size - 1))
+    }
+
+    @Test func eachConnectionRunsOnItsOwnSession() async throws {
+        let size = 32 * Self.mb
+        let host = RangeServer.Host(size: size) { _ in 0.003 }
+        let part = partURL()
+        defer { try? FileManager.default.removeItem(at: part) }
+
+        let (result, segments, _) = await download(RangeServer.serve(host), segments: Segment.split(size: size, connections: 4, resumable: true),
+                                                connections: 4, partURL: part)
+        try result.get()
+        let ids = host.lock.withLock { host.taskIDs }
+        // A shared session would number the first four 1, 2, 3, 4; separate sessions, each never sharing
+        // a connection, all start at 1. Requests running at the same time never share a session, so
+        // the same identifier on all four also proves the engine tells their tasks apart.
+        #expect(ids.prefix(4) == [1, 1, 1, 1])
+        expectWhole(segments, size: size)
         #expect(try Data(contentsOf: part) == RangeServer.content(0...size - 1))
     }
 

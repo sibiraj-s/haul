@@ -250,22 +250,26 @@ nonisolated final class SegmentedDownloader: NSObject, URLSessionDataDelegate, @
 
     // Only touched on `queue`.
     private let queue = OperationQueue()
-    private var session: URLSession?
+    /// One session per connection slot. Sessions don't share connections, so each slot gets its own
+    /// TCP connection; one shared session would multiplex every request over a single HTTP/2 connection.
+    private var sessions: [URLSession] = []
     private var handle: FileHandle?
-    private var tasks: [Int: Int] = [:]
+    /// The segment each running task downloads, and the slot whose session it runs on.
+    private var tasks: [URLSessionTask: Int] = [:]
+    private var slots: [URLSessionTask: Int] = [:]
     private var pending: [Int] = []
     private var sleeping = 0
     private var maxParallel: Int
-    private var rejected: [Int: Error] = [:]
+    private var rejected: [URLSessionTask: Error] = [:]
     private var attempts: [Int: Int] = [:]
     private var throttles: [Int: Int] = [:]
     /// Refused parts already sent again on the next free connection; refused once more, they wait
     /// out Retry-After until the server accepts them.
     private var retriedEarly: Set<Int> = []
     /// Tasks the server answered with the range asked for; only these are split.
-    private var confirmed: Set<Int> = []
+    private var confirmed: Set<URLSessionTask> = []
     /// The range end each bounded task asked for, to tell when a split has moved its segment's end.
-    private var requestedEnds: [Int: Int64] = [:]
+    private var requestedEnds: [URLSessionTask: Int64] = [:]
 
     /// Segments with less than this left aren't split further: a new connection's setup costs more than it saves.
     static let minimumSplit: Int64 = 4 * 1024 * 1024
@@ -309,7 +313,7 @@ nonisolated final class SegmentedDownloader: NSObject, URLSessionDataDelegate, @
         config.httpMaximumConnectionsPerHost = 32
         config.timeoutIntervalForRequest = 60
         browser?.apply(to: config)
-        session = URLSession(configuration: config, delegate: self, delegateQueue: queue)
+        sessions = (0..<maxParallel).map { _ in URLSession(configuration: config, delegate: self, delegateQueue: queue) }
         queue.addOperation { [self] in
             do {
                 if !FileManager.default.fileExists(atPath: partURL.path) {
@@ -329,7 +333,7 @@ nonisolated final class SegmentedDownloader: NSObject, URLSessionDataDelegate, @
     /// Stops all connections; progress so far stays in the partial file and in `snapshot()`.
     func cancel() {
         lock.withLock { stopped = true; live = 0 }
-        session?.invalidateAndCancel()
+        sessions.forEach { $0.invalidateAndCancel() }
         queue.addOperation { [self] in
             try? handle?.close()
             handle = nil
@@ -346,7 +350,7 @@ nonisolated final class SegmentedDownloader: NSObject, URLSessionDataDelegate, @
         try? handle?.synchronize()
         try? handle?.close()
         handle = nil
-        session?.invalidateAndCancel()
+        sessions.forEach { $0.invalidateAndCancel() }
         completion(result)
     }
 
@@ -402,7 +406,9 @@ nonisolated final class SegmentedDownloader: NSObject, URLSessionDataDelegate, @
     }
 
     private func launch(_ index: Int) {
-        guard !isStopped, let session else { return }
+        // The server may have lowered the limit, so slots past it stay unused.
+        let used = Set(slots.values)
+        guard !isStopped, let slot = sessions.indices.first(where: { !used.contains($0) }) else { return }
         let s = current[index]
         var request = URLRequest(url: url)
         request.setValue(Probe.acceptEncoding, forHTTPHeaderField: "Accept-Encoding")
@@ -416,23 +422,24 @@ nonisolated final class SegmentedDownloader: NSObject, URLSessionDataDelegate, @
         if let ifRange, request.value(forHTTPHeaderField: "Range") != nil {
             request.setValue(ifRange, forHTTPHeaderField: "If-Range")
         }
-        let task = session.dataTask(with: request)
-        tasks[task.taskIdentifier] = index
-        if let end = s.end { requestedEnds[task.taskIdentifier] = end }
+        let task = sessions[slot].dataTask(with: request)
+        tasks[task] = index
+        slots[task] = slot
+        if let end = s.end { requestedEnds[task] = end }
         task.resume()
     }
 
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse,
                     completionHandler: @escaping @Sendable (URLSession.ResponseDisposition) -> Void) {
-        guard let index = tasks[dataTask.taskIdentifier] else { return completionHandler(.cancel) }
+        guard let index = tasks[dataTask] else { return completionHandler(.cancel) }
         if let http = response as? HTTPURLResponse {
             if http.statusCode == 429 || http.statusCode == 503 {
                 let wait = http.value(forHTTPHeaderField: "Retry-After").flatMap(Double.init) ?? 5
-                rejected[dataTask.taskIdentifier] = DownloadError.throttled(retryAfter: min(60, max(1, wait)), status: http.statusCode)
+                rejected[dataTask] = DownloadError.throttled(retryAfter: min(60, max(1, wait)), status: http.statusCode)
                 return completionHandler(.cancel)
             }
             if !(200..<300).contains(http.statusCode) {
-                rejected[dataTask.taskIdentifier] = DownloadError.response(http)
+                rejected[dataTask] = DownloadError.response(http)
                 return completionHandler(.cancel)
             }
             // Server ignored our Range header and is sending the whole file. That's only
@@ -441,12 +448,12 @@ nonisolated final class SegmentedDownloader: NSObject, URLSessionDataDelegate, @
             let s = current
             if ranged && http.statusCode != 206 && !(s.count == 1 && s[index].start + s[index].done == 0) {
                 // With If-Range, a full 200 reply means the validator no longer matches.
-                rejected[dataTask.taskIdentifier] = ifRange != nil ? DownloadError.fileChanged : DownloadError.noRangeSupport
+                rejected[dataTask] = ifRange != nil ? DownloadError.fileChanged : DownloadError.noRangeSupport
                 return completionHandler(.cancel)
             }
             // Offsets in a compressed reply don't match the bytes URLSession hands over after decompressing.
             if ranged && Probe.isEncoded(http) {
-                rejected[dataTask.taskIdentifier] = DownloadError.noRangeSupport
+                rejected[dataTask] = DownloadError.noRangeSupport
                 return completionHandler(.cancel)
             }
             if http.statusCode == 206 && ranged {
@@ -455,11 +462,11 @@ nonisolated final class SegmentedDownloader: NSObject, URLSessionDataDelegate, @
                 let size = ends.count == s.count ? ends.max().map { $0 + 1 } : nil
                 if let problem = Self.rangeProblem(http.value(forHTTPHeaderField: "Content-Range"),
                                                    from: s[index].start + s[index].done, size: size) {
-                    rejected[dataTask.taskIdentifier] = problem
+                    rejected[dataTask] = problem
                     return completionHandler(.cancel)
                 }
             }
-            if http.statusCode == 206 { confirmed.insert(dataTask.taskIdentifier) }
+            if http.statusCode == 206 { confirmed.insert(dataTask) }
         }
         retriedEarly.remove(index)
         lock.withLock { _ = writing.insert(index) }
@@ -469,7 +476,7 @@ nonisolated final class SegmentedDownloader: NSObject, URLSessionDataDelegate, @
     }
 
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
-        guard let index = tasks[dataTask.taskIdentifier], let handle, !isStopped else { return }
+        guard let index = tasks[dataTask], let handle, !isStopped else { return }
         let s = current[index]
         let offset = s.start + s.done
         var chunk = data
@@ -482,7 +489,7 @@ nonisolated final class SegmentedDownloader: NSObject, URLSessionDataDelegate, @
             try handle.seek(toOffset: UInt64(offset))
             try handle.write(contentsOf: chunk)
         } catch {
-            rejected[dataTask.taskIdentifier] = error
+            rejected[dataTask] = error
             return dataTask.cancel()
         }
         let complete = lock.withLock {
@@ -491,15 +498,16 @@ nonisolated final class SegmentedDownloader: NSObject, URLSessionDataDelegate, @
         }
         limiter.throttle(chunk.count)
         // A split moved this segment's end short of the range asked for; stop before reading into the other half.
-        if complete, let asked = requestedEnds[dataTask.taskIdentifier], asked != s.end { dataTask.cancel() }
+        if complete, let asked = requestedEnds[dataTask], asked != s.end { dataTask.cancel() }
     }
 
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
-        guard let index = tasks.removeValue(forKey: task.taskIdentifier), !isStopped else { return }
+        slots[task] = nil
+        guard let index = tasks.removeValue(forKey: task), !isStopped else { return }
         lock.withLock { _ = writing.remove(index) }
-        let rejection = rejected.removeValue(forKey: task.taskIdentifier)
-        confirmed.remove(task.taskIdentifier)
-        requestedEnds[task.taskIdentifier] = nil
+        let rejection = rejected.removeValue(forKey: task)
+        confirmed.remove(task)
+        requestedEnds[task] = nil
         defer { pump() }
 
         // Unknown-length stream ended cleanly: now we know where it ends.
