@@ -17,6 +17,8 @@ nonisolated enum DownloadError: LocalizedError {
     case diskFull(String)
     /// A 206 reply whose Content-Range is missing or starts somewhere other than the byte asked for.
     case wrongRange
+    /// Every connection finished, but the partial file doesn't hold every byte of the file.
+    case incomplete
 
     /// Worth trying again later on its own: dropped connections, timeouts, server errors.
     static func isTransient(_ error: Error) -> Bool {
@@ -92,6 +94,7 @@ nonisolated enum DownloadError: LocalizedError {
         case .noRangeSupport: "Server doesn't support resuming"
         case .truncated: "Connection closed before the file finished"
         case .wrongRange: "Server sent a different part of the file than was asked for"
+        case .incomplete: "Parts of the file are missing, so it wasn't saved. Restart the download"
         case .throttled(_, let status): DownloadError.http(status).errorDescription
         }
     }
@@ -338,11 +341,27 @@ nonisolated final class SegmentedDownloader: NSObject, URLSessionDataDelegate, @
     private func finish(_ result: Result<Void, Error>) {
         guard !isStopped else { return }
         lock.withLock { stopped = true; live = 0 }
+        var result = result
+        if case .success = result, let problem = verifyPart() { result = .failure(problem) }
         try? handle?.synchronize()
         try? handle?.close()
         handle = nil
         session?.invalidateAndCancel()
         completion(result)
+    }
+
+    /// Checks the finished partial file is exactly the file: every byte from 0 to the end downloaded,
+    /// and nothing after it. Bytes past the end, left by an earlier attempt, are cut off.
+    private func verifyPart() -> DownloadError? {
+        guard let handle, let expected = Segment.downloadedLength(current) else { return .incomplete }
+        do {
+            let length = Int64(try handle.seekToEnd())
+            if length < expected { return .incomplete }
+            if length > expected { try handle.truncate(atOffset: UInt64(expected)) }
+            return nil
+        } catch {
+            return .incomplete
+        }
     }
 
     /// Starts queued segments while there are free connection slots, then fills any slots

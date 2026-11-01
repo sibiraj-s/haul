@@ -333,6 +333,36 @@ struct SegmentedDownloaderTests {
         #expect(host.lock.withLock { host.requests.count } <= 2)
     }
 
+    @Test func partialFileMissingBytesIsNotReportedDone() async throws {
+        let size = 4 * Self.mb
+        let host = RangeServer.Host(size: size) { _ in 0.003 }
+        let part = partURL()
+        defer { try? FileManager.default.removeItem(at: part) }
+        // The segments say everything is downloaded, but the partial file holds only half.
+        try RangeServer.content(0...size / 2 - 1).write(to: part)
+        let segments = [Segment(start: 0, end: size - 1, done: size)]
+
+        let (result, _, _) = await download(RangeServer.serve(host), segments: segments, connections: 1, partURL: part)
+        guard case .failure(let error) = result, case .incomplete? = error as? DownloadError else {
+            Issue.record("expected incomplete, got \(result)")
+            return
+        }
+    }
+
+    @Test func bytesPastTheEndOfTheFileAreCutOff() async throws {
+        let size = 4 * Self.mb
+        let host = RangeServer.Host(size: size) { _ in 0.003 }
+        let part = partURL()
+        defer { try? FileManager.default.removeItem(at: part) }
+        // Left over from an earlier, longer attempt.
+        try (RangeServer.content(0...size - 1) + Data(repeating: 0xFF, count: 1000)).write(to: part)
+        let segments = [Segment(start: 0, end: size - 1, done: size)]
+
+        let (result, _, _) = await download(RangeServer.serve(host), segments: segments, connections: 1, partURL: part)
+        try result.get()
+        #expect(try Data(contentsOf: part) == RangeServer.content(0...size - 1))
+    }
+
     @Test func asksForUncompressedBytes() async throws {
         let size = 8 * Self.mb
         let host = RangeServer.Host(size: size) { _ in 0.003 }

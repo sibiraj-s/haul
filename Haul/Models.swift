@@ -123,6 +123,17 @@ nonisolated struct Segment: Codable, Hashable, Sendable {
         return Int(max(1, min(Int64(requested), size / (256 * 1024))))
     }
 
+    /// The file's length when the segments, in any order, are all complete and cover it from
+    /// byte 0 with no gap or overlap; otherwise nil.
+    static func downloadedLength(_ segments: [Segment]) -> Int64? {
+        var next: Int64 = 0
+        for s in segments.sorted(by: { $0.start < $1.start }) {
+            guard s.start == next, s.isComplete, let end = s.end else { return nil }
+            next = end + 1
+        }
+        return segments.isEmpty ? nil : next
+    }
+
     static func split(size: Int64?, connections: Int, resumable: Bool) -> [Segment] {
         guard let size else { return [Segment(start: 0, end: nil)] }
         let count = Int64(Segment.connections(size: size, requested: connections, resumable: resumable))

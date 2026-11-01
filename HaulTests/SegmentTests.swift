@@ -3,6 +3,19 @@ import Testing
 @testable import Haul
 
 struct SegmentTests {
+    @Test func downloadedLengthNeedsEveryByteOnce() {
+        func done(_ start: Int64, _ end: Int64) -> Segment { Segment(start: start, end: end, done: end - start + 1) }
+        // Out of order, as splits leave them.
+        #expect(Segment.downloadedLength([done(0, 99), done(200, 299), done(100, 199)]) == 300)
+        #expect(Segment.downloadedLength([done(0, 99), done(150, 299)]) == nil, "gap")
+        #expect(Segment.downloadedLength([done(0, 199), done(100, 299)]) == nil, "overlap")
+        #expect(Segment.downloadedLength([done(10, 99)]) == nil, "doesn't start at 0")
+        #expect(Segment.downloadedLength([done(0, 99), Segment(start: 100, end: 199, done: 50)]) == nil, "unfinished")
+        #expect(Segment.downloadedLength([Segment(start: 0, end: nil, done: 10)]) == nil, "unknown end")
+        #expect(Segment.downloadedLength([Segment(start: 0, end: -1)]) == 0, "empty file")
+        #expect(Segment.downloadedLength([]) == nil)
+    }
+
     @Test func splitsIntoContiguousRanges() {
         let size: Int64 = 10 * 1024 * 1024
         let segments = Segment.split(size: size, connections: 4, resumable: true)
