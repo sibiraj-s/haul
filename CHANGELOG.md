@@ -4,114 +4,95 @@
 
 ### Minor Changes
 
-- c15699b: Download over several networks at once: with Multi-network downloads on in Settings → Network, each download splits its connections across Wi‑Fi, Ethernet and USB tethering, and a badge in the header shows each network's speed and the total speed-up. It's off by default, and Haul offers it once when it finds more than one network to use. Metered networks such as a phone's hotspot are only used when Pause on Personal Hotspot is off, and nothing changes while a VPN or proxy is on. Each network is checked to serve the same file before it's used, and one that can't reach the file or serves another version of it is left out while the download carries on over the rest
+- c15699b: Multi-network downloads: use Wi‑Fi, Ethernet and USB tethering at the same time for faster downloads. Turn it on in Settings → Network
 
 ## 1.5.3
 
 ### Patch Changes
 
-- 6c48f84: Fix Retry failing the same way again when a download's saved progress can't be continued, such as when the partial file lost data or the server stopped resuming: Retry now starts it over. Also accept a server sending the whole file compressed, and stop retrying forever on a connection that's cut off after every few bytes
+- 6c48f84: Retry now starts a download over when it can't continue where it left off, and downloads on unstable connections no longer retry forever
 
 ## 1.5.2
 
 ### Patch Changes
 
-- 9bdf0d5: Fix downloads that could finish corrupted when a server sent a different part of the file than asked for: such replies are now retried instead of written, and a reply for a different version of the file stops the download as changed on the server
-- d9f4bae: Long downloads on an unreliable network no longer fail after a few dropped connections: a connection that dropped after making progress gets its full set of retries again
-- 0fd4713: Download faster from servers that use HTTP/2: each connection is now a connection of its own, where before all of a download's connections shared a single one to the server
-- 08deb08: Fix downloads that could finish corrupted when a server compressed its replies: Haul now asks for the file's own bytes, and if a server compresses them anyway, the file is downloaded in one go instead of in parts
-- ca2948a: Check a finished download holds every byte of the file before saving it: a download missing parts now fails with a prompt to restart it instead of saving a broken file, and leftover bytes from an earlier attempt are removed
+- 9bdf0d5: Fix downloads that could finish corrupted with some servers
+- d9f4bae: Long downloads on unreliable networks no longer fail after a few dropped connections
+- 0fd4713: Faster downloads from HTTP/2 servers
+- 08deb08: Fix downloads that could finish corrupted when a server compresses files
+- ca2948a: Incomplete downloads are no longer saved as broken files; Haul asks you to restart them instead
 
 ## 1.5.1
 
 ### Patch Changes
 
-- ec5a863: Fix download progress freezing while a right-click menu is open or a window is being resized
+- ec5a863: Fix download progress freezing while a menu is open or a window is resized
 
 ## 1.5.0
 
 ### Minor Changes
 
-- 5e26bef: Add a Chrome and Firefox extension (also Brave, Edge, Vivaldi and Arc): downloads you start in the browser open in Haul instead, signed in with the browser's cookies, and links get Download with Haul in their menu. Click its toolbar button to stop capturing downloads. Also fixes a faint line across the arrow in the app icon on macOS 26 and in the Safari extension's icon
-- c77c525: Add an Extensions pane to Settings: the Safari extension, now moved from General, and a link to the Chrome Web Store or Firefox Add-ons for each browser you have installed, which opens in that browser
-- f8962be: Add downloads remotely: a password-protected page to paste links into and to pause, resume or remove downloads, and an API for curl and scripts, turned on in the new Remote pane in Settings. It's served on this Mac or to your network, and a tunnel such as cloudflared can make it reachable from anywhere
+- 5e26bef: New Chrome and Firefox extension to send downloads and links to Haul. Also works in Brave, Edge, Vivaldi and Arc
+- c77c525: New Extensions pane in Settings to set up the Safari, Chrome and Firefox extensions
+- f8962be: Remote downloads: add and manage downloads from a web page or the command line. Turn it on in Settings → Remote
 
 ## 1.4.0
 
 ### Minor Changes
 
-- 2542bc3: Finish downloads sooner: when a connection finishes its part, it takes over half of the part with the most left, so every connection keeps downloading until the end instead of waiting on the slowest one. Parts with less than 8 MB left aren't split, and downloads never use more connections than you set
+- 2542bc3: Downloads finish sooner: connections that finish early take over the remaining parts
 
 ### Patch Changes
 
-- 155f244: Improved connections details bars, shows accurate progress and state and fixed line wraps. Downloads no longer stall when a server limits connections: a part the server turns away takes the next connection that frees up, instead of every connection sitting idle until the server's retry time
+- 155f244: Clearer connection details, and downloads no longer stall when a server limits connections
 
 ## 1.3.1
 
 ### Patch Changes
 
-- e616aec: Check for updates on the latest release. For earlier versions, manually downlaod the new release to get future updates
+- e616aec: Fix checking for updates. If you're on an earlier version, download the latest release manually to keep getting updates
 
 ## 1.3.0
 
 ### Minor Changes
 
-- 9db8236: Add a `haul` command-line tool: `haul add <link>…` opens the Add panel with the links filled in, and `haul add < links.txt` reads them from a file. Choose Haul → Install Command Line Tool… to put it in ~/.local/bin, no password needed; if your shell doesn't look there yet, Haul shows the line to add and can add it to ~/.zshrc (or your shell's file) for you. The command comes from inside Haul, so it updates with the app, and the same menu item uninstalls it
-- b548a95: Choose how downloads connect in Settings → Network → Proxy: System (the default) follows macOS's proxy settings, None connects directly, and Custom sends downloads through an HTTP or SOCKS5 proxy, with an optional username and password kept in the Keychain and a list of hosts that skip the proxy
-- 945609b: Extract archives when they finish: tick Extract when finished in the Add panel. Zip, tar (gz, bz2, xz) and 7z archives are unpacked next to the archive, which is kept, and the inspector shows where they went
-- 068086e: Send links to Haul from other apps: select links and choose Services → Download with Haul, or open a `haul://add?url=…` link. Either opens the Add panel with the links filled in
-- 6560e6f: Pause downloads on Personal Hotspot and Low Data Mode, so they don't use your mobile data. Turn it on or off in Settings → Network. A badge in the toolbar shows when you're on such a network; click it to pause all downloads, or download anyway until you join another network. Android hotspots are detected too
-- aed868e: Add keyboard shortcuts for the selected download: ⌘⌫ removes it, ⌘O opens it and ⌘R shows it in Finder. ⇧⌘⌫ clears completed downloads, ⌃⌘S and ⌥⌘I toggle the sidebar and inspector, and ⌘1–⌘5 switch views. Help → Keyboard Shortcuts (⌘/) lists them all
-- 8cff6be: Add a Safari extension: right-click a link, or selected text with links, and choose Download with Haul. Turn it on in Settings → General or in Safari's Extensions settings
-- b1542f5: Links sent from the Safari extension download as they would in Safari: Haul sends Safari's cookies for the site, its User-Agent and the page as the Referer, so files that need you to be signed in work. Allow the extension on the site in Safari to share its cookies; links from private windows never take them. The cookies are kept only for that download and dropped once it finishes
-- 13495f1: Add Haul to the Share menu for web links, which opens them in the Add panel. Turn it on from the Share menu's Edit Extensions, or in System Settings → General → Login Items & Extensions
-- 5b13239: Choose what happens when a download is done: open it or show it in Finder, from When done in the Add panel. With Extract when finished, it opens or shows what was extracted
+- 9db8236: New `haul` command-line tool to add downloads from Terminal. Install it from Haul → Install Command Line Tool…
+- b548a95: Proxy support, in Settings → Network → Proxy
+- 945609b: Extract zip, tar and 7z archives automatically when they finish
+- 068086e: Send links to Haul from any app with Services → Download with Haul or `haul://` links
+- 6560e6f: Pause downloads on Personal Hotspot and Low Data Mode to save mobile data
+- aed868e: Keyboard shortcuts for common actions. See Help → Keyboard Shortcuts (⌘/)
+- 8cff6be: New Safari extension: right-click a link and choose Download with Haul
+- b1542f5: Downloads from Safari now work on sites that need you to be signed in
+- 13495f1: Haul is now in the Share menu for web links
+- 5b13239: Open a download or show it in Finder automatically when it's done
 
 ### Patch Changes
 
-- 69a4b23: Update installer design
-- 8ac4293: The Dock icon now shows the download percentage badge. Haul asks for permission to badge its icon, which macOS needs before it shows the badge
+- 69a4b23: Updated installer design
+- 8ac4293: The Dock icon shows download progress
 
 ## 1.2.0
 
 ### Minor Changes
 
-- 06a6029: Option to move the file to the Trash when removing a download
-  
-  - The remove confirmation has an "Also move the file to the Trash" checkbox for finished downloads
-  - The checkbox remembers the last choice
-  - With "Ask before removing downloads" off, the file is always kept
-  - Works for downloads saved to a folder picked in the Add panel
-  - If the file can't be moved to the Trash, Haul says so and keeps the download in the list
-- 79b1563: Clear finished downloads from the list after a chosen number of days
-  
-  - "Remove finished downloads from list" now takes any number of days, 90 by default
-  - Only the list is cleared; files stay where they were saved
-  - The earlier one day, one week and one month choices carry over as 1, 7 and 30 days
+- 06a6029: Option to also move the file to the Trash when removing a download
+- 79b1563: Option to clear finished downloads from the list after a number of days you choose
 
 ### Patch Changes
 
-- 4c95ebb: Turning off "Retry failed downloads" now ends retries already waiting, with the usual failure notification
-- e4ed2a9: Sign-in no longer picks the wrong method when the server's realm name mentions "basic"
-- 6f5cf52: Replacing an existing file no longer loses it if saving the new one fails
-- 4121614: Download fixes
-  
-  - "Start immediately" now waits for a free slot instead of going past the simultaneous downloads limit
-  - Pausing and resuming a download while its size is being checked no longer starts it twice
-  - Servers that hide the file size no longer produce a 1-byte download
-- fe47e94: Unticking "Start immediately" now adds the download paused, so it doesn't start until you start it
-- 74c77b7: Move "Skip web pages" to the Downloads settings
+- 4c95ebb: Turning off "Retry failed downloads" now stops pending retries
+- e4ed2a9: Fix sign-in on some servers
+- 6f5cf52: Replacing an existing file no longer loses it if the new one fails to save
+- 4121614: Fixes for starting, pausing and resuming downloads
+- fe47e94: Unticking "Start immediately" now adds the download paused
+- 74c77b7: Moved "Skip web pages" to the Downloads settings
 
 ## 1.1.0
 
 ### Minor Changes
 
-- 8f72914: Improve handling multiple several links while adding downloads
-  
-  - The address field stays on one line and shows the start of a pasted link
-  - Links can be separated by commas or semicolons, as well as spaces and new lines
-  - Real file names are shown when adding several links
-  - Warn when the same link is pasted twice, or several links share a file name
+- 8f72914: Paste several links at once, separated by spaces, commas or new lines, with warnings for duplicates
 
 ### Patch Changes
 
