@@ -496,6 +496,9 @@ nonisolated final class SegmentedDownloader: NSObject, URLSessionDataDelegate, @
             segments[index].done += Int64(chunk.count)
             return segments[index].isComplete
         }
+        // The connection is moving the segment forward, so a later drop starts a fresh run of retries;
+        // the limit is for connections that keep failing, not for long downloads on a flaky network.
+        attempts[index] = nil
         limiter.throttle(chunk.count)
         // A split moved this segment's end short of the range asked for; stop before reading into the other half.
         if complete, let asked = requestedEnds[dataTask], asked != s.end { dataTask.cancel() }

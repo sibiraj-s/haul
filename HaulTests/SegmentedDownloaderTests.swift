@@ -21,6 +21,9 @@ nonisolated final class RangeServer: URLProtocol, @unchecked Sendable {
         var reportedSize: Int64?
         /// Sent as Content-Encoding, as if the server compressed the reply anyway.
         var encoding: String?
+        /// This many connections drop after sending `dropAfter` bytes, as on a flaky network.
+        var drops = 0
+        var dropAfter: Int64 = 1024 * 1024
 
         let lock = NSLock()
         /// The Accept-Encoding of every request, in order.
@@ -65,6 +68,8 @@ nonisolated final class RangeServer: URLProtocol, @unchecked Sendable {
     private let stopLock = NSLock()
     private var stopped = false
     private var host: Host?
+    /// Bytes this request has sent so far.
+    private var sent: Int64 = 0
 
     override class func canInit(with request: URLRequest) -> Bool { request.url?.scheme == "rangetest" }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
@@ -122,7 +127,15 @@ nonisolated final class RangeServer: URLProtocol, @unchecked Sendable {
             guard !stopLock.withLock({ stopped }) else { return }
             let last = min(end, offset + 256 * 1024 - 1)
             client!.urlProtocol(self, didLoad: Self.content(offset...last))
-            if last == end {
+            sent += last - offset + 1
+            if let host, last < end, host.lock.withLock({
+                guard host.drops > 0, sent >= host.dropAfter else { return false }
+                host.drops -= 1
+                return true
+            }) {
+                finish()
+                client!.urlProtocol(self, didFailWithError: URLError(.networkConnectionLost))
+            } else if last == end {
                 finish()
                 client!.urlProtocolDidFinishLoading(self)
             } else {
@@ -174,7 +187,8 @@ struct SegmentedDownloaderTests {
 
     @Test func freeConnectionsTakeOverTheSlowestSegment() async throws {
         let size = 48 * Self.mb
-        let host = RangeServer.Host(size: size) { $0 == 0 ? 0.02 : 0.003 }
+        // The first part is far slower than the rest, so it's still going when they finish on any machine.
+        let host = RangeServer.Host(size: size) { $0 == 0 ? 0.05 : 0.001 }
         let part = partURL()
         defer { try? FileManager.default.removeItem(at: part) }
 
@@ -199,8 +213,9 @@ struct SegmentedDownloaderTests {
         let (result, segments, _) = await download(RangeServer.serve(host), segments: Segment.split(size: size, connections: 8, resumable: true),
                                                 connections: 8, partURL: part)
         try result.get()
-        // Waiting out the minute-long Retry-After would leave every connection idle once the first three parts were done.
-        #expect(Date().timeIntervalSince(started) < 10)
+        // Waiting out the minute-long Retry-After would leave every connection idle once the first three parts were
+        // done; half of it leaves room for a slow machine.
+        #expect(Date().timeIntervalSince(started) < 30)
         #expect(host.maxActive <= 3)
         expectWhole(segments, size: size)
         #expect(try Data(contentsOf: part) == RangeServer.content(0...size - 1))
@@ -210,6 +225,8 @@ struct SegmentedDownloaderTests {
         let size = 48 * Self.mb
         let third = 16 * Self.mb
         let host = RangeServer.Host(size: size, refuse: [third: 3]) { $0 == 0 ? 0.02 : 0.003 }
+        // Well above the time the last part takes to free its connection, even on a slow machine.
+        host.retryAfter = 3
         let part = partURL()
         defer { try? FileManager.default.removeItem(at: part) }
 
@@ -219,11 +236,11 @@ struct SegmentedDownloaderTests {
         try result.get()
         let tries = host.lock.withLock { host.requests.filter { $0.start == third }.map(\.at) }
         try #require(tries.count == 4)
-        // Sent again as soon as a connection freed up; refused again, it waits out the 1 s Retry-After
+        // Sent again as soon as a connection freed up; refused again, it waits out the 3 s Retry-After
         // every time after, until the server takes it.
-        #expect(tries[1].timeIntervalSince(tries[0]) < 0.9)
-        #expect(tries[2].timeIntervalSince(tries[1]) >= 0.9)
-        #expect(tries[3].timeIntervalSince(tries[2]) >= 0.9)
+        #expect(tries[1].timeIntervalSince(tries[0]) < 2.5)
+        #expect(tries[2].timeIntervalSince(tries[1]) >= 2.9)
+        #expect(tries[3].timeIntervalSince(tries[2]) >= 2.9)
         // Only the first refusal set the limit: the two connections it found open.
         #expect(serverLimit == 2)
         expectWhole(segments, size: size)
@@ -254,7 +271,8 @@ struct SegmentedDownloaderTests {
 
     @Test func resumeFillsConnectionsLeftFree() async throws {
         let size = 64 * Self.mb
-        let host = RangeServer.Host(size: size) { _ in 0.003 }
+        // Slow enough that the two parts left are still going when their split halves start.
+        let host = RangeServer.Host(size: size) { _ in 0.02 }
         let part = partURL()
         defer { try? FileManager.default.removeItem(at: part) }
         var segments = Segment.split(size: size, connections: 8, resumable: true)
@@ -363,6 +381,22 @@ struct SegmentedDownloaderTests {
 
         let (result, _, _) = await download(RangeServer.serve(host), segments: segments, connections: 1, partURL: part)
         try result.get()
+        #expect(try Data(contentsOf: part) == RangeServer.content(0...size - 1))
+    }
+
+    @Test func connectionsThatDropAfterProgressKeepRetrying() async throws {
+        let size = 8 * Self.mb
+        // More drops than a segment may retry in a row; each one comes after a megabyte of progress.
+        let host = RangeServer.Host(size: size) { _ in 0.003 }
+        host.drops = 6
+        let part = partURL()
+        defer { try? FileManager.default.removeItem(at: part) }
+
+        let (result, segments, _) = await download(RangeServer.serve(host), segments: Segment.split(size: size, connections: 1, resumable: true),
+                                                connections: 1, partURL: part)
+        try result.get()
+        #expect(host.lock.withLock { host.drops } == 0)
+        expectWhole(segments, size: size)
         #expect(try Data(contentsOf: part) == RangeServer.content(0...size - 1))
     }
 
