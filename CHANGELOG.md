@@ -1,5 +1,11 @@
 # haul
 
+## 1.6.1
+
+### Patch Changes
+
+- a271f12: Smaller downloads: The DMG now uses stronger compression, making the download about a third smaller
+
 ## 1.6.0
 
 ### Minor Changes
