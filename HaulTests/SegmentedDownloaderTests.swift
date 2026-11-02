@@ -26,6 +26,8 @@ nonisolated final class RangeServer: URLProtocol, @unchecked Sendable {
         var dropAfter: Int64 = 1024 * 1024
         /// Ignores Range and answers every request with the whole file and a 200.
         var ignoreRange = false
+        /// Requests starting at these bytes hold back their last chunk until removed from here.
+        var hold: Set<Int64> = []
 
         let lock = NSLock()
         /// The Accept-Encoding of every request, in order.
@@ -70,6 +72,8 @@ nonisolated final class RangeServer: URLProtocol, @unchecked Sendable {
     private let stopLock = NSLock()
     private var stopped = false
     private var host: Host?
+    /// The first byte this request is answered from.
+    private var start: Int64 = 0
     /// Bytes this request has sent so far.
     private var sent: Int64 = 0
 
@@ -92,6 +96,7 @@ nonisolated final class RangeServer: URLProtocol, @unchecked Sendable {
         }
         if misplaced { (start, end) = (0, end - start) }
         if host.ignoreRange { (start, end) = (0, host.size - 1) }
+        self.start = start
 
         let throttled = host.lock.withLock {
             let refused = host.refuse[start, default: 0] > 0
@@ -128,6 +133,9 @@ nonisolated final class RangeServer: URLProtocol, @unchecked Sendable {
         DispatchQueue.global().asyncAfter(deadline: .now() + wait) { [self] in
             guard !stopLock.withLock({ stopped }) else { return }
             let last = min(end, offset + 256 * 1024 - 1)
+            if last == end, let host, host.lock.withLock({ host.hold.contains(start) }) {
+                return send(from: offset, to: end, wait: 0.01)
+            }
             client!.urlProtocol(self, didLoad: Self.content(offset...last))
             sent += last - offset + 1
             if let host, last < end, host.lock.withLock({
@@ -297,12 +305,32 @@ struct SegmentedDownloaderTests {
         let size = 48 * Self.mb
         let third = 16 * Self.mb
         let host = RangeServer.Host(size: size, refuse: [third: 1]) { $0 == 0 ? 0.02 : 0.003 }
+        // Neither accepted part frees its connection before the engine has taken in the refusal, however slow
+        // the machine: a slot freed before then is rightly split, as the engine can't know the part is waiting.
+        host.hold = [0, 2 * third]
         let part = partURL()
         defer { try? FileManager.default.removeItem(at: part) }
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [RangeServer.self]
+        let (finished, done) = AsyncStream<Result<Void, Error>>.makeStream()
+        let engine = SegmentedDownloader(url: RangeServer.serve(host), partURL: part,
+                                         segments: Segment.split(size: size, connections: 3, resumable: true), connections: 3,
+                                         browser: nil, limiter: RateLimiter(), configuration: config) {
+            done.yield($0)
+            done.finish()
+        }
+        engine.start()
+        defer { engine.cancel() }
+        // The first refusal sets the server's limit, in the same step that queues the part for the next free slot.
+        for _ in 0..<500 where engine.connectionState().serverLimit == nil {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        try #require(engine.connectionState().serverLimit != nil)
+        host.lock.withLock { host.hold = [] }
 
-        let (result, segments, _) = await download(RangeServer.serve(host), segments: Segment.split(size: size, connections: 3, resumable: true),
-                                                connections: 3, partURL: part)
+        let result = try #require(await finished.first { _ in true })
         try result.get()
+        let segments = engine.snapshot()
         // While the refused segment waits for a connection, no split takes the slot it's waiting for.
         let requests = host.lock.withLock { host.requests }
         let retry = try #require(requests.lastIndex { $0.start == third })
