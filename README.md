@@ -4,6 +4,8 @@
 
 A native download manager for macOS, built with SwiftUI.
 
+**[Download for macOS](https://github.com/sibiraj-s/haul/releases/latest)** · [Chrome extension](https://chromewebstore.google.com/detail/dhpcpomodjoajhnpnbnobdngljjilfge) · [Firefox add-on](https://addons.mozilla.org/firefox/addon/haul-downloader/) · [Website](https://haul.sibiraj.dev)
+
 ![Haul downloading a file over eight connections](./screenshot.png)
 
 ## Features
@@ -31,3 +33,5 @@ Requires macOS 26 or later on Apple Silicon.
 2. Open it and drag Haul to Applications.
 
 Haul checks for updates once a day and installs them from within the app.
+
+To send browser downloads to Haul, add the extension for [Chrome](https://chromewebstore.google.com/detail/dhpcpomodjoajhnpnbnobdngljjilfge) (also Brave, Edge, Vivaldi and Arc) or [Firefox](https://addons.mozilla.org/firefox/addon/haul-downloader/). The Safari extension comes with the app; turn it on in Safari → Settings → Extensions.

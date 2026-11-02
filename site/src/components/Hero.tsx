@@ -1,5 +1,15 @@
+import { links } from '../links'
 import { useLatestRelease } from '../useLatestRelease'
 import { DownloadIcon } from './Icons'
+
+/** The stores' own badges, used unmodified apart from size as their branding guidelines require. */
+function StoreBadge({ href, src, alt }: { href: string; src: string; alt: string }) {
+  return (
+    <a href={href} target="_blank" rel="noreferrer" className="rounded-lg outline-offset-4 hover:opacity-85">
+      <img src={src} alt={alt} className="h-11 w-auto" />
+    </a>
+  )
+}
 
 export function Hero() {
   const { version, downloadURL } = useLatestRelease()
@@ -29,6 +39,10 @@ export function Hero() {
         <span className="text-[13px] text-text2">
           Free and open source · Version {version} · macOS 26 or later · Apple Silicon
         </span>
+      </div>
+      <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+        <StoreBadge href={links.chromeExtension} src="./chrome-web-store.png" alt="Available in the Chrome Web Store" />
+        <StoreBadge href={links.firefoxExtension} src="./firefox-add-ons.svg" alt="Get the add-on for Firefox" />
       </div>
     </section>
   )
