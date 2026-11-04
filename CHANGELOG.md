@@ -1,5 +1,12 @@
 # haul
 
+## 1.7.0
+
+### Minor Changes
+
+- 430055f: Menu bar mode: Haul can now hide its Dock icon when you close the window and keep running in the menu bar. Turn it on in Settings → General
+- c48c52c: Menu bar shortcuts: right-click the icon to open Settings, check for updates or quit Haul
+
 ## 1.6.1
 
 ### Patch Changes
