@@ -4,8 +4,9 @@ import SwiftUI
 /// Haul's colour tokens and the small custom controls built from them.
 enum Theme {
     private static func rgb(_ hex: UInt32, _ alpha: CGFloat = 1) -> NSColor {
-        NSColor(srgbRed: CGFloat((hex >> 16) & 0xFF) / 255, green: CGFloat((hex >> 8) & 0xFF) / 255,
-                blue: CGFloat(hex & 0xFF) / 255, alpha: alpha)
+        NSColor(
+            srgbRed: CGFloat((hex >> 16) & 0xFF) / 255, green: CGFloat((hex >> 8) & 0xFF) / 255,
+            blue: CGFloat(hex & 0xFF) / 255, alpha: alpha)
     }
 
     private static func dynamic(_ light: NSColor, _ dark: NSColor) -> Color {

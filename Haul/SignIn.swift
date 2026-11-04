@@ -29,7 +29,8 @@ enum SignIn {
         let alert = NSAlert()
         alert.messageText = failed ? "Sign-in failed for \(space.host)" : "Sign in to \(space.host)"
         alert.informativeText = [
-            failed ? "The username or password was rejected. Try again." : "This server needs a username and password to download the file.",
+            failed
+                ? "The username or password was rejected. Try again." : "This server needs a username and password to download the file.",
             realm.map { "The server says: “\($0)”." },
             url.scheme?.lowercased() == "http" && !digest ? "The connection isn't secure, so your password is sent unencrypted." : nil,
         ].compactMap { $0 }.joined(separator: " ")
@@ -41,8 +42,9 @@ enum SignIn {
         guard alert.runModal() == .alertFirstButtonReturn, !user.stringValue.isEmpty else { return false }
 
         if let saved { URLCredentialStorage.shared.remove(saved, for: space) }
-        let credential = URLCredential(user: user.stringValue, password: password.stringValue,
-                                       persistence: remember.state == .on ? .permanent : .forSession)
+        let credential = URLCredential(
+            user: user.stringValue, password: password.stringValue,
+            persistence: remember.state == .on ? .permanent : .forSession)
         URLCredentialStorage.shared.setDefaultCredential(credential, for: space)
         return true
     }

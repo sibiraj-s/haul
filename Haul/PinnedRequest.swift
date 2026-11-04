@@ -64,10 +64,12 @@ nonisolated final class PinnedRequest: @unchecked Sendable {
     /// The most a reply's head may take; servers send a few KB at most.
     static let maxHead = 64 * 1024
 
-    init(_ request: URLRequest, over interface: NWInterface, queue: DispatchQueue,
-         cookies: @escaping (URL) -> [String: String] = { _ in [:] }, idleLimit: TimeInterval = PinnedRequest.idleLimit,
-         onResponse: @escaping (PinnedRequest, HTTPURLResponse) -> Bool, onData: @escaping (PinnedRequest, Data) -> Void,
-         onComplete: @escaping (PinnedRequest, Error?) -> Void) {
+    init(
+        _ request: URLRequest, over interface: NWInterface, queue: DispatchQueue,
+        cookies: @escaping (URL) -> [String: String] = { _ in [:] }, idleLimit: TimeInterval = PinnedRequest.idleLimit,
+        onResponse: @escaping (PinnedRequest, HTTPURLResponse) -> Bool, onData: @escaping (PinnedRequest, Data) -> Void,
+        onComplete: @escaping (PinnedRequest, Error?) -> Void
+    ) {
         self.request = request
         self.interface = interface
         self.queue = queue
@@ -89,7 +91,8 @@ nonisolated final class PinnedRequest: @unchecked Sendable {
 
     private func connect() {
         guard let url = request.url, let host = url.host(), let scheme = url.scheme?.lowercased(),
-              scheme == "https" || scheme == "http" else { return finish(URLError(.unsupportedURL)) }
+            scheme == "https" || scheme == "http"
+        else { return finish(URLError(.unsupportedURL)) }
         let tcp = NWProtocolTCP.Options()
         tcp.connectionTimeout = 15
         let parameters: NWParameters
@@ -138,10 +141,12 @@ nonisolated final class PinnedRequest: @unchecked Sendable {
             guard let connection, Self.isLocal(connection.currentPath?.localEndpoint, on: interface.name) else {
                 return finish(Failure.notOnInterface)
             }
-            connection.send(content: head(), completion: .contentProcessed { [weak self, weak connection] error in
-                guard let self, let error, connection === self.connection else { return }
-                finish(Self.urlError(error))
-            })
+            connection.send(
+                content: head(),
+                completion: .contentProcessed { [weak self, weak connection] error in
+                    guard let self, let error, connection === self.connection else { return }
+                    finish(Self.urlError(error))
+                })
             receive(on: connection)
         case .waiting(let error):
             // Waiting usually means the network is gone or blocked; it rarely comes back in time.
@@ -211,9 +216,9 @@ nonisolated final class PinnedRequest: @unchecked Sendable {
     /// gives way to http.
     private func redirect(_ response: HTTPURLResponse) -> Bool {
         guard [301, 302, 303, 307, 308].contains(response.statusCode), redirects < Self.maxRedirects,
-              let location = response.value(forHTTPHeaderField: "Location"), let from = request.url,
-              let to = URL(string: location, relativeTo: from)?.absoluteURL,
-              to.scheme?.lowercased() == "https" || (to.scheme?.lowercased() == "http" && from.scheme?.lowercased() == "http")
+            let location = response.value(forHTTPHeaderField: "Location"), let from = request.url,
+            let to = URL(string: location, relativeTo: from)?.absoluteURL,
+            to.scheme?.lowercased() == "https" || (to.scheme?.lowercased() == "http" && from.scheme?.lowercased() == "http")
         else { return false }
         redirects += 1
         if to.host()?.lowercased() != from.host()?.lowercased() {
@@ -273,7 +278,7 @@ nonisolated final class PinnedRequest: @unchecked Sendable {
         let rest = Data(buffer[end.upperBound...])
         buffer = Data()
         guard let (status, fields) = Self.parseHead(head), let url = request.url,
-              let response = HTTPURLResponse(url: url, statusCode: status, httpVersion: "HTTP/1.1", headerFields: fields)
+            let response = HTTPURLResponse(url: url, statusCode: status, httpVersion: "HTTP/1.1", headerFields: fields)
         else { return finish(Failure.badResponse) }
         // An interim reply; the real one follows.
         if (100..<200).contains(status) { return consume(rest) }
@@ -283,7 +288,9 @@ nonisolated final class PinnedRequest: @unchecked Sendable {
         if status == 204 || status == 304 { return finish(nil) }
         if response.value(forHTTPHeaderField: "Transfer-Encoding")?.lowercased().contains("chunked") == true {
             body = .chunked(left: nil)
-        } else if let length = response.value(forHTTPHeaderField: "Content-Length").flatMap({ Int64($0.trimmingCharacters(in: .whitespaces)) }), length >= 0 {
+        } else if let length = response.value(forHTTPHeaderField: "Content-Length").flatMap({
+            Int64($0.trimmingCharacters(in: .whitespaces))
+        }), length >= 0 {
             if length == 0 { return finish(nil) }
             body = .length(length)
         } else {
@@ -306,7 +313,8 @@ nonisolated final class PinnedRequest: @unchecked Sendable {
                 let text = String(decoding: buffer[..<line.lowerBound], as: UTF8.self)
                 buffer.removeSubrange(..<line.upperBound)
                 guard let size = Int64(text.split(separator: ";").first?.trimmingCharacters(in: .whitespaces) ?? "", radix: 16),
-                      size >= 0 else { return finish(Failure.badResponse) }
+                    size >= 0
+                else { return finish(Failure.badResponse) }
                 body = size == 0 ? .trailers : .chunked(left: size)
             case .chunked(left: let left?):
                 if left > 0 {

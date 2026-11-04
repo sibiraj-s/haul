@@ -54,7 +54,8 @@ nonisolated enum Extractor {
             .filter { $0.lastPathComponent != ".DS_Store" }
         if contents.isEmpty { throw Failure(errorDescription: "The archive is empty.") }
 
-        let (source, name) = contents.count == 1
+        let (source, name) =
+            contents.count == 1
             ? (contents[0], contents[0].lastPathComponent)
             : (work, baseName(archive.lastPathComponent))
         let target = uniqueURL(in: folder, name: name)

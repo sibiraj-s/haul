@@ -25,7 +25,10 @@ struct AddDownloadPanel: View {
     @FocusState private var addressFocused: Bool
 
     private enum ProbeState {
-        case idle, checking, ok(Probe.Info), failed(String), needsSignIn(realm: String?, digest: Bool)
+        case idle, checking
+        case ok(Probe.Info)
+        case failed(String)
+        case needsSignIn(realm: String?, digest: Bool)
     }
 
     /// The link leads to a web page and Settings says to skip those.
@@ -51,7 +54,8 @@ struct AddDownloadPanel: View {
 
     nonisolated static func link(_ text: String) -> URL? {
         guard let url = URL(string: text), let scheme = url.scheme?.lowercased(),
-              scheme == "http" || scheme == "https", url.host() != nil else { return nil }
+            scheme == "http" || scheme == "https", url.host() != nil
+        else { return nil }
         return url
     }
 
@@ -117,7 +121,10 @@ struct AddDownloadPanel: View {
             await probeBatch(newLinks.filter { batchInfo[$0] == nil })
         }
         .task(id: "\(probeAttempt) \(address)") {
-            guard let url = parsedURL else { probe = .idle; return }
+            guard let url = parsedURL else {
+                probe = .idle
+                return
+            }
             probe = .checking
             try? await Task.sleep(for: .milliseconds(400))
             guard !Task.isCancelled else { return }
@@ -161,8 +168,10 @@ struct AddDownloadPanel: View {
             Grid(alignment: .leading, horizontalSpacing: 0, verticalSpacing: 10) {
                 GridRow {
                     Text("Save to").foregroundStyle(Theme.text2).frame(width: 96, alignment: .leading)
-                    FolderMenu(folder: $folder, defaultLabel: isBatch && store.settings.autoSort
-                               ? "\(store.settings.baseFolder.lastPathComponent), by kind" : store.settings.folderLabel(for: kind))
+                    FolderMenu(
+                        folder: $folder,
+                        defaultLabel: isBatch && store.settings.autoSort
+                            ? "\(store.settings.baseFolder.lastPathComponent), by kind" : store.settings.folderLabel(for: kind))
                 }
                 GridRow {
                     Text("Connections").foregroundStyle(Theme.text2)
@@ -192,10 +201,12 @@ struct AddDownloadPanel: View {
                 Spacer()
                 PillButton(title: "Cancel") { close() }
                     .keyboardShortcut(.cancelAction)
-                PillButton(title: isBatch ? "Add \(newLinks.count) Download\(newLinks.count == 1 ? "" : "s")" : startNow ? "Download" : "Add",
-                           prominent: true) { confirm() }
-                    .keyboardShortcut(.defaultAction)
-                    .opacity(canConfirm ? 1 : 0.45)
+                PillButton(
+                    title: isBatch ? "Add \(newLinks.count) Download\(newLinks.count == 1 ? "" : "s")" : startNow ? "Download" : "Add",
+                    prominent: true
+                ) { confirm() }
+                .keyboardShortcut(.defaultAction)
+                .opacity(canConfirm ? 1 : 0.45)
             }
             .padding(.top, 4)
         }
@@ -224,8 +235,11 @@ struct AddDownloadPanel: View {
         if isBatch {
             let skipped = links.count - newLinks.count
             if skipped > 0 {
-                notice(newLinks.isEmpty ? "All of these links are already in your list."
-                       : "\(skipped) of these link\(skipped == 1 ? " is" : "s are") already in your list and will be skipped.") { EmptyView() }
+                notice(
+                    newLinks.isEmpty
+                        ? "All of these links are already in your list."
+                        : "\(skipped) of these link\(skipped == 1 ? " is" : "s are") already in your list and will be skipped."
+                ) { EmptyView() }
             }
             let names = newLinks.map(batchName)
             if let repeated = names.first(where: { name in names.filter { $0 == name }.count > 1 }) {
@@ -275,9 +289,13 @@ struct AddDownloadPanel: View {
 
     @ViewBuilder private var preview: some View {
         if let url = parsedURL {
-            let name: String = if case .ok(let info) = probe { info.name } else { url.lastPathComponent.isEmpty || url.lastPathComponent == "/" ? url.host() ?? "" : url.lastPathComponent }
+            let name: String =
+                if case .ok(let info) = probe { info.name } else {
+                    url.lastPathComponent.isEmpty || url.lastPathComponent == "/" ? url.host() ?? "" : url.lastPathComponent
+                }
             HStack(spacing: 10) {
-                FileIcon(ext: String(fileExtension(name).uppercased().prefix(4)), kind: .of(name), width: 28, height: 34, band: 11, fontSize: 7)
+                FileIcon(
+                    ext: String(fileExtension(name).uppercased().prefix(4)), kind: .of(name), width: 28, height: 34, band: 11, fontSize: 7)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(name).fontWeight(.medium).lineLimit(1).truncationMode(.middle)
                     Group {
@@ -287,10 +305,13 @@ struct AddDownloadPanel: View {
                         case .ok where blockedWebPage:
                             Text("This link opens a web page, not a file.").foregroundStyle(Theme.red)
                         case .ok(let info):
-                            Text([FileKind.of(info.name).label,
-                                  info.size.map(formatBytes) ?? "Unknown size",
-                                  url.host() ?? "",
-                                  info.acceptsRanges ? nil : "single connection"].compactMap { $0 }.joined(separator: " · "))
+                            Text(
+                                [
+                                    FileKind.of(info.name).label,
+                                    info.size.map(formatBytes) ?? "Unknown size",
+                                    url.host() ?? "",
+                                    info.acceptsRanges ? nil : "single connection",
+                                ].compactMap { $0 }.joined(separator: " · "))
                         case .failed(let message):
                             Text(message).foregroundStyle(Theme.red)
                         case .needsSignIn:
@@ -368,7 +389,9 @@ struct AddDownloadPanel: View {
             ForEach(links.prefix(shown), id: \.self) { url in
                 let name = batchName(url)
                 HStack(spacing: 8) {
-                    FileIcon(ext: String(fileExtension(name).uppercased().prefix(4)), kind: .of(name), width: 16, height: 20, band: 7, fontSize: 4.5, radius: 3)
+                    FileIcon(
+                        ext: String(fileExtension(name).uppercased().prefix(4)), kind: .of(name), width: 16, height: 20, band: 7,
+                        fontSize: 4.5, radius: 3)
                     Text(name).lineLimit(1).truncationMode(.middle)
                     Spacer(minLength: 4)
                     if store.existing(url: url) != nil {
@@ -410,8 +433,9 @@ struct AddDownloadPanel: View {
         if isBatch {
             // Queued rather than started, so the simultaneous-download limit applies.
             for url in newLinks {
-                store.add(url: url, probe: batchInfo[url], connections: connections, start: .queued, folder: folder,
-                          extract: extracting, whenDone: whenDone)
+                store.add(
+                    url: url, probe: batchInfo[url], connections: connections, start: .queued, folder: folder,
+                    extract: extracting, whenDone: whenDone)
             }
             return close()
         }
@@ -419,8 +443,9 @@ struct AddDownloadPanel: View {
         var info: Probe.Info?
         if case .ok(let i) = probe { info = i }
         let replacing = replace && fileName.flatMap { store.existingFile(named: $0, in: folder) } != nil
-        store.add(url: url, probe: info, connections: connections, start: startNow ? .now : .paused, folder: folder,
-                  replaceExisting: replacing, extract: extracting, whenDone: whenDone)
+        store.add(
+            url: url, probe: info, connections: connections, start: startNow ? .now : .paused, folder: folder,
+            replaceExisting: replacing, extract: extracting, whenDone: whenDone)
         close()
     }
 }

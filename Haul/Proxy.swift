@@ -52,7 +52,9 @@ nonisolated struct ProxySettings: Sendable, Equatable {
 
     /// Downloads go through a proxy: the custom one, or the system's when following it, as a custom
     /// one that isn't filled in yet does (see `apply(to:)`).
-    var goesThroughProxy: Bool { goesThroughProxy(system: CFNetworkCopySystemProxySettings()?.takeRetainedValue() as? [String: Any] ?? [:]) }
+    var goesThroughProxy: Bool {
+        goesThroughProxy(system: CFNetworkCopySystemProxySettings()?.takeRetainedValue() as? [String: Any] ?? [:])
+    }
 
     /// `goesThroughProxy` with the system's proxy settings being `system`.
     func goesThroughProxy(system: @autoclosure () -> [String: Any]) -> Bool {
@@ -65,8 +67,10 @@ nonisolated struct ProxySettings: Sendable, Equatable {
 
     /// Whether the system's proxy settings turn any proxy on, automatic configuration included.
     static func hasProxy(_ system: [String: Any]) -> Bool {
-        let switches = [kCFNetworkProxiesHTTPEnable, kCFNetworkProxiesHTTPSEnable, kCFNetworkProxiesSOCKSEnable,
-                        kCFNetworkProxiesProxyAutoConfigEnable, kCFNetworkProxiesProxyAutoDiscoveryEnable]
+        let switches = [
+            kCFNetworkProxiesHTTPEnable, kCFNetworkProxiesHTTPSEnable, kCFNetworkProxiesSOCKSEnable,
+            kCFNetworkProxiesProxyAutoConfigEnable, kCFNetworkProxiesProxyAutoDiscoveryEnable,
+        ]
         return switches.contains { (system[$0 as String] as? NSNumber)?.boolValue == true }
     }
 

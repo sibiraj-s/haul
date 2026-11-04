@@ -1,6 +1,7 @@
 import Foundation
 import Network
 import Testing
+
 @testable import Haul
 
 struct ProxyTests {

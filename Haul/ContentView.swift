@@ -289,7 +289,9 @@ private struct HeaderBar: View {
         .frame(height: 52)
     }
 
-    private func iconButton(_ symbol: String, help: String, weight: Font.Weight = .regular, color: Color = Theme.text, action: @escaping () -> Void) -> some View {
+    private func iconButton(
+        _ symbol: String, help: String, weight: Font.Weight = .regular, color: Color = Theme.text, action: @escaping () -> Void
+    ) -> some View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: 14, weight: weight))
@@ -491,10 +493,12 @@ private struct AllNetworksOffer: View {
         .popover(isPresented: $showDetails, arrowEdge: .bottom) {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Download over \(names.count) networks at once").font(.system(size: 13, weight: .semibold))
-                Text("\(names.formatted(.list(type: .and))) each have their own connection. Haul can split downloads across them to finish sooner. You can change this in Settings → Network.")
-                    .font(.system(size: 12))
-                    .foregroundStyle(Theme.text2)
-                    .fixedSize(horizontal: false, vertical: true)
+                Text(
+                    "\(names.formatted(.list(type: .and))) each have their own connection. Haul can split downloads across them to finish sooner. You can change this in Settings → Network."
+                )
+                .font(.system(size: 12))
+                .foregroundStyle(Theme.text2)
+                .fixedSize(horizontal: false, vertical: true)
                 HStack {
                     Spacer()
                     PillButton(title: "Not Now", height: 24, fontSize: 12) {
@@ -533,11 +537,13 @@ private struct DownloadList: View {
                         DownloadRow(download: d, selected: d.id == store.selection)
                             .id(d.id)
                             .onTapGesture(count: 2) { d.status == .completed ? store.open(d) : store.toggle(d.id) }
-                            .simultaneousGesture(TapGesture().onEnded {
-                                dragging = nil
-                                store.selection = d.id
-                                focused = true
-                            })
+                            .simultaneousGesture(
+                                TapGesture().onEnded {
+                                    dragging = nil
+                                    store.selection = d.id
+                                    focused = true
+                                }
+                            )
                             .contextMenu { RowMenu(download: d) }
                             .modifier(QueueReorder(id: d.id, enabled: reorderable, dragging: $dragging))
                     }
@@ -556,7 +562,10 @@ private struct DownloadList: View {
                 }
             }
             // A drag released outside a row (or cancelled) never reaches a row's delegate.
-            .onDrop(of: [.text], isTargeted: nil) { _ in dragging = nil; return false }
+            .onDrop(of: [.text], isTargeted: nil) { _ in
+                dragging = nil
+                return false
+            }
             .onChange(of: store.filter) { dragging = nil }
             .focusable()
             .focusEffectDisabled()
@@ -681,7 +690,9 @@ private struct StatusBar: View {
         HStack(spacing: 14) {
             Text("\(count) item\(count == 1 ? "" : "s")")
             Spacer()
-            Text(s.limitOn ? "Limited to \(s.limitMBps) MB/s · ↓ \(formatBytes(store.totalSpeed))/s" : "↓ \(formatBytes(store.totalSpeed))/s")
+            Text(
+                s.limitOn ? "Limited to \(s.limitMBps) MB/s · ↓ \(formatBytes(store.totalSpeed))/s" : "↓ \(formatBytes(store.totalSpeed))/s"
+            )
         }
         .font(.system(size: 11))
         .monospacedDigit()

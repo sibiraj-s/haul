@@ -31,8 +31,10 @@ nonisolated enum DownloadError: LocalizedError {
             default: return false
             }
         case let e as URLError:
-            return [.timedOut, .networkConnectionLost, .notConnectedToInternet, .cannotConnectToHost,
-                    .cannotFindHost, .dnsLookupFailed, .badServerResponse, .dataNotAllowed].contains(e.code)
+            return [
+                .timedOut, .networkConnectionLost, .notConnectedToInternet, .cannotConnectToHost,
+                .cannotFindHost, .dnsLookupFailed, .badServerResponse, .dataNotAllowed,
+            ].contains(e.code)
         default:
             return false
         }
@@ -57,13 +59,18 @@ nonisolated enum DownloadError: LocalizedError {
         var result: [(scheme: String, realm: String?)] = []
         var afterComma = true
         for (i, token) in tokens.enumerated() {
-            if token == "," { afterComma = true; continue }
+            if token == "," {
+                afterComma = true
+                continue
+            }
             defer { afterComma = false }
             let next = i + 1 < tokens.count ? tokens[i + 1] : nil
             // A scheme starts the header or follows a comma; a parameter name is followed by "=".
             if afterComma, next != "=", !token.hasPrefix("\"") {
                 result.append((token.lowercased(), nil))
-            } else if token.lowercased() == "realm", next == "=", i + 2 < tokens.count, !result.isEmpty, result[result.count - 1].realm == nil {
+            } else if token.lowercased() == "realm", next == "=", i + 2 < tokens.count, !result.isEmpty,
+                result[result.count - 1].realm == nil
+            {
                 var value = tokens[i + 2]
                 if value.hasPrefix("\""), value.count >= 2 {
                     value = String(value.dropFirst().dropLast()).replacing(/\\(.)/) { String($0.1) }
@@ -151,9 +158,10 @@ nonisolated enum Probe {
         let name = (http.suggestedFilename ?? fallback).replacingOccurrences(of: "/", with: "-")
         // Weak ETags (W/"…") aren't allowed in If-Range, so only keep strong ones.
         let etag = http.value(forHTTPHeaderField: "ETag").flatMap { $0.hasPrefix("W/") ? nil : $0 }
-        return Info(name: name, size: size, acceptsRanges: ranges, etag: etag,
-                    lastModified: http.value(forHTTPHeaderField: "Last-Modified"),
-                    isWebPage: ["text/html", "application/xhtml+xml"].contains(http.mimeType?.lowercased() ?? ""))
+        return Info(
+            name: name, size: size, acceptsRanges: ranges, etag: etag,
+            lastModified: http.value(forHTTPHeaderField: "Last-Modified"),
+            isWebPage: ["text/html", "application/xhtml+xml"].contains(http.mimeType?.lowercased() ?? ""))
     }
 }
 
@@ -184,9 +192,10 @@ extension Probe {
     /// shared credential storage, so a credential saved here is sent automatically.
     static func protectionSpace(for url: URL, realm: String?, digest: Bool) -> URLProtectionSpace {
         let scheme = url.scheme?.lowercased() ?? "https"
-        return URLProtectionSpace(host: url.host() ?? "", port: url.port ?? (scheme == "https" ? 443 : 80),
-                                  protocol: scheme, realm: realm,
-                                  authenticationMethod: digest ? NSURLAuthenticationMethodHTTPDigest : NSURLAuthenticationMethodHTTPBasic)
+        return URLProtectionSpace(
+            host: url.host() ?? "", port: url.port ?? (scheme == "https" ? 443 : 80),
+            protocol: scheme, realm: realm,
+            authenticationMethod: digest ? NSURLAuthenticationMethodHTTPDigest : NSURLAuthenticationMethodHTTPBasic)
     }
 }
 
@@ -200,7 +209,11 @@ nonisolated final class RateLimiter: @unchecked Sendable {
     /// Bytes per second; 0 disables the limit.
     func setRate(_ newRate: Double) {
         lock.withLock {
-            if newRate != rate { rate = newRate; tokens = 0; last = Date() }
+            if newRate != rate {
+                rate = newRate
+                tokens = 0
+                last = Date()
+            }
         }
     }
 
@@ -357,10 +370,12 @@ nonisolated final class SegmentedDownloader: NSObject, URLSessionDataDelegate, @
     /// ranged requests carry one as If-Range so a server whose file has changed answers 200 instead of
     /// a mismatched range. `connections` caps how many run at once; 1 for servers that can't serve ranges.
     /// `routes` are the networks to spread those connections over.
-    init(url: URL, partURL: URL, segments: [Segment], connections: Int, etag: String? = nil, lastModified: String? = nil,
-         routes: [Route] = [.standard], browser: BrowserContext?, limiter: RateLimiter,
-         configuration: URLSessionConfiguration = ProxySettings.sessionConfiguration(),
-         completion: @escaping @Sendable (Result<Void, Error>) -> Void) {
+    init(
+        url: URL, partURL: URL, segments: [Segment], connections: Int, etag: String? = nil, lastModified: String? = nil,
+        routes: [Route] = [.standard], browser: BrowserContext?, limiter: RateLimiter,
+        configuration: URLSessionConfiguration = ProxySettings.sessionConfiguration(),
+        completion: @escaping @Sendable (Result<Void, Error>) -> Void
+    ) {
         self.url = url
         self.partURL = partURL
         self.etag = etag
@@ -423,8 +438,11 @@ nonisolated final class SegmentedDownloader: NSObject, URLSessionDataDelegate, @
 
     /// Stops all connections; progress so far stays in the partial file and in `snapshot()`.
     func cancel() {
-        lock.withLock { stopped = true; live = 0 }
-        sessions.forEach { $0.invalidateAndCancel() }
+        lock.withLock {
+            stopped = true
+            live = 0
+        }
+        for session in sessions { session.invalidateAndCancel() }
         queue.addOperation { [self] in
             for request in running.values { request.cancel() }
             for check in checks.values { check.request?.cancel() }
@@ -437,13 +455,16 @@ nonisolated final class SegmentedDownloader: NSObject, URLSessionDataDelegate, @
 
     private func finish(_ result: Result<Void, Error>) {
         guard !isStopped else { return }
-        lock.withLock { stopped = true; live = 0 }
+        lock.withLock {
+            stopped = true
+            live = 0
+        }
         var result = result
         if case .success = result, let problem = verifyPart() { result = .failure(problem) }
         try? handle?.synchronize()
         try? handle?.close()
         handle = nil
-        sessions.forEach { $0.invalidateAndCancel() }
+        for session in sessions { session.invalidateAndCancel() }
         for request in running.values { request.cancel() }
         for check in checks.values { check.request?.cancel() }
         completion(result)
@@ -554,16 +575,20 @@ nonisolated final class SegmentedDownloader: NSObject, URLSessionDataDelegate, @
         if let interface = route.interface {
             // Another server may tag the same file differently, so instead of If-Range each reply's
             // validators are checked on arrival (`sameFile`).
-            let pinned = pinnedRequest(request, over: interface, onResponse: { [weak self] request, response in
-                guard let self else { return false }
-                let allow = received(response, ObjectIdentifier(request))
-                if allow { pump() }
-                return allow
-            }, onData: { [weak self] request, data in
-                self?.receivedData(data, ObjectIdentifier(request))
-            }, onComplete: { [weak self] request, error in
-                self?.completed(ObjectIdentifier(request), error)
-            })
+            let pinned = pinnedRequest(
+                request, over: interface,
+                onResponse: { [weak self] request, response in
+                    guard let self else { return false }
+                    let allow = received(response, ObjectIdentifier(request))
+                    if allow { pump() }
+                    return allow
+                },
+                onData: { [weak self] request, data in
+                    self?.receivedData(data, ObjectIdentifier(request))
+                },
+                onComplete: { [weak self] request, error in
+                    self?.completed(ObjectIdentifier(request), error)
+                })
             id = ObjectIdentifier(pinned)
             cancel = { pinned.cancel() }
             start = { pinned.start() }
@@ -581,14 +606,18 @@ nonisolated final class SegmentedDownloader: NSObject, URLSessionDataDelegate, @
     }
 
     /// A request over `interface`, with cookies from the store URLSession uses.
-    private func pinnedRequest(_ request: URLRequest, over interface: NWInterface,
-                               onResponse: @escaping (PinnedRequest, HTTPURLResponse) -> Bool,
-                               onData: @escaping (PinnedRequest, Data) -> Void,
-                               onComplete: @escaping (PinnedRequest, Error?) -> Void) -> PinnedRequest {
+    private func pinnedRequest(
+        _ request: URLRequest, over interface: NWInterface,
+        onResponse: @escaping (PinnedRequest, HTTPURLResponse) -> Bool,
+        onData: @escaping (PinnedRequest, Data) -> Void,
+        onComplete: @escaping (PinnedRequest, Error?) -> Void
+    ) -> PinnedRequest {
         let cookies = cookies
-        return PinnedRequest(request, over: interface, queue: serial, cookies: { url in
-            HTTPCookie.requestHeaderFields(with: cookies?.cookies(for: url) ?? [])
-        }, onResponse: onResponse, onData: onData, onComplete: onComplete)
+        return PinnedRequest(
+            request, over: interface, queue: serial,
+            cookies: { url in
+                HTTPCookie.requestHeaderFields(with: cookies?.cookies(for: url) ?? [])
+            }, onResponse: onResponse, onData: onData, onComplete: onComplete)
     }
 
     /// How long a busy server (429 or 503) asks to wait: Retry-After, kept between 1 and 60 seconds.
@@ -597,8 +626,10 @@ nonisolated final class SegmentedDownloader: NSObject, URLSessionDataDelegate, @
         return min(60, max(1, http.value(forHTTPHeaderField: "Retry-After").flatMap(Double.init) ?? 5))
     }
 
-    func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse,
-                    completionHandler: @escaping @Sendable (URLSession.ResponseDisposition) -> Void) {
+    func urlSession(
+        _ session: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse,
+        completionHandler: @escaping @Sendable (URLSession.ResponseDisposition) -> Void
+    ) {
         let allow = received(response, ObjectIdentifier(dataTask))
         completionHandler(allow ? .allow : .cancel)
         // Free slots may now be filled from this connection's segment.
@@ -652,8 +683,10 @@ nonisolated final class SegmentedDownloader: NSObject, URLSessionDataDelegate, @
                 // Nothing of this reply is written yet, so the segment's next byte is still where the request started.
                 let ends = s.compactMap(\.end)
                 let size = ends.count == s.count ? ends.max().map { $0 + 1 } : nil
-                if let problem = Self.rangeProblem(http.value(forHTTPHeaderField: "Content-Range"),
-                                                   from: s[index].start + s[index].done, size: size) {
+                if let problem = Self.rangeProblem(
+                    http.value(forHTTPHeaderField: "Content-Range"),
+                    from: s[index].start + s[index].done, size: size)
+                {
                     rejected[id] = problem
                     return false
                 }
@@ -697,7 +730,8 @@ nonisolated final class SegmentedDownloader: NSObject, URLSessionDataDelegate, @
 
     private func completed(_ id: ObjectIdentifier, _ error: Error?) {
         guard let request = running.removeValue(forKey: id), !isStopped else { return }
-        let index = request.segment, from = request.from
+        let index = request.segment
+        let from = request.from
         lock.withLock { _ = writing.remove(index) }
         let rejection = rejected.removeValue(forKey: id)
         let wasAnswered = answered.remove(id) != nil
@@ -809,23 +843,30 @@ nonisolated final class SegmentedDownloader: NSObject, URLSessionDataDelegate, @
         request.setValue(Probe.acceptEncoding, forHTTPHeaderField: "Accept-Encoding")
         browser?.apply(to: &request)
         request.setValue("bytes=0-\(length - 1)", forHTTPHeaderField: "Range")
-        let name = route.name, etag = etag, lastModified = lastModified
-        let check = pinnedRequest(request, over: interface, onResponse: { [weak self] _, http in
-            guard let self else { return false }
-            // Busy, as a server that allows a few connections per account is while the others hold them.
-            if let wait = Self.busyWait(http) {
-                checks[name]?.busyFor = wait
-                return false
-            }
-            let same = http.statusCode == 206 && !Probe.isEncoded(http) && Self.sameFile(http, etag: etag, lastModified: lastModified)
-                && Self.rangeProblem(http.value(forHTTPHeaderField: "Content-Range"), from: 0, size: size) == nil
-            if !same { checks[name]?.refused = true }
-            return same
-        }, onData: { [weak self] _, data in
-            self?.checks[name]?.data.append(data)
-        }, onComplete: { [weak self] _, error in
-            self?.checkEnded(route, error, length: length)
-        })
+        let name = route.name
+        let etag = etag
+        let lastModified = lastModified
+        let check = pinnedRequest(
+            request, over: interface,
+            onResponse: { [weak self] _, http in
+                guard let self else { return false }
+                // Busy, as a server that allows a few connections per account is while the others hold them.
+                if let wait = Self.busyWait(http) {
+                    checks[name]?.busyFor = wait
+                    return false
+                }
+                let same =
+                    http.statusCode == 206 && !Probe.isEncoded(http) && Self.sameFile(http, etag: etag, lastModified: lastModified)
+                    && Self.rangeProblem(http.value(forHTTPHeaderField: "Content-Range"), from: 0, size: size) == nil
+                if !same { checks[name]?.refused = true }
+                return same
+            },
+            onData: { [weak self] _, data in
+                self?.checks[name]?.data.append(data)
+            },
+            onComplete: { [weak self] _, error in
+                self?.checkEnded(route, error, length: length)
+            })
         checks[name] = Check(request: check, busy: checks[name]?.busy ?? 0)
         check.start()
     }
@@ -895,7 +936,8 @@ nonisolated final class SegmentedDownloader: NSObject, URLSessionDataDelegate, @
     nonisolated static func rangeProblem(_ header: String?, from: Int64, size: Int64?) -> DownloadError? {
         // "bytes first-last/total", where total may be "*".
         guard let header, let match = header.wholeMatch(of: /\s*bytes\s+(\d+)-(\d+)\/(\d+|\*)\s*/),
-              let first = Int64(match.1), let last = Int64(match.2), first <= last else { return .wrongRange }
+            let first = Int64(match.1), let last = Int64(match.2), first <= last
+        else { return .wrongRange }
         if let total = Int64(match.3) {
             if last >= total { return .wrongRange }
             if let size, total != size { return .fileChanged }

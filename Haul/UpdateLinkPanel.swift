@@ -11,13 +11,16 @@ struct UpdateLinkPanel: View {
     @FocusState private var addressFocused: Bool
 
     private enum ProbeState {
-        case idle, checking, ok(Probe.Info), failed(String)
+        case idle, checking
+        case ok(Probe.Info)
+        case failed(String)
     }
 
     private var parsedURL: URL? {
         guard let url = URL(string: address.trimmingCharacters(in: .whitespacesAndNewlines)),
-              let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https",
-              url.host() != nil else { return nil }
+            let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https",
+            url.host() != nil
+        else { return nil }
         return url
     }
 
@@ -42,14 +45,18 @@ struct UpdateLinkPanel: View {
             withAnimation(.easeOut(duration: 0.18)) { appeared = true }
             // Prefill with a link from the clipboard if it isn't the current one.
             if let s = NSPasteboard.general.string(forType: .string)?.trimmingCharacters(in: .whitespacesAndNewlines),
-               let url = URL(string: s), ["http", "https"].contains(url.scheme?.lowercased() ?? ""),
-               url != download.url {
+                let url = URL(string: s), ["http", "https"].contains(url.scheme?.lowercased() ?? ""),
+                url != download.url
+            {
                 address = url.absoluteString
             }
             addressFocused = true
         }
         .task(id: address) {
-            guard let url = parsedURL else { probe = .idle; return }
+            guard let url = parsedURL else {
+                probe = .idle
+                return
+            }
             probe = .checking
             try? await Task.sleep(for: .milliseconds(400))
             guard !Task.isCancelled else { return }
@@ -65,12 +72,14 @@ struct UpdateLinkPanel: View {
         VStack(alignment: .leading, spacing: 14) {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Update Link").font(.system(size: 14, weight: .bold))
-                Text(download.received > 0
-                     ? "Paste a new link to the same file. \(formatBytes(download.received)) already downloaded will be kept if it matches."
-                     : "Paste a new link for this download.")
-                    .font(.system(size: 12))
-                    .foregroundStyle(Theme.text2)
-                    .fixedSize(horizontal: false, vertical: true)
+                Text(
+                    download.received > 0
+                        ? "Paste a new link to the same file. \(formatBytes(download.received)) already downloaded will be kept if it matches."
+                        : "Paste a new link for this download."
+                )
+                .font(.system(size: 12))
+                .foregroundStyle(Theme.text2)
+                .fixedSize(horizontal: false, vertical: true)
             }
 
             HStack(spacing: 10) {
@@ -105,8 +114,10 @@ struct UpdateLinkPanel: View {
                     .keyboardShortcut(.cancelAction)
                 switch check {
                 case .resumable:
-                    PillButton(title: download.received > 0 ? "Update & Resume" : "Update & Start", prominent: true) { apply(restart: false) }
-                        .keyboardShortcut(.defaultAction)
+                    PillButton(title: download.received > 0 ? "Update & Resume" : "Update & Start", prominent: true) {
+                        apply(restart: false)
+                    }
+                    .keyboardShortcut(.defaultAction)
                 case .restartOnly:
                     PillButton(title: "Restart with New Link", prominent: true) { apply(restart: true) }
                         .keyboardShortcut(.defaultAction)
@@ -149,11 +160,13 @@ struct UpdateLinkPanel: View {
                     case .resumable(let warning?):
                         Label(warning, systemImage: "exclamationmark.triangle.fill").foregroundStyle(Theme.orange)
                     case .resumable(nil):
-                        Label(download.received > 0
-                              ? "Same file (\(info.size.map(formatBytes) ?? "?")) — will resume where it stopped."
-                              : "Link works (\(info.size.map(formatBytes) ?? "unknown size")).",
-                              systemImage: "checkmark.circle.fill")
-                            .foregroundStyle(Theme.green)
+                        Label(
+                            download.received > 0
+                                ? "Same file (\(info.size.map(formatBytes) ?? "?")) — will resume where it stopped."
+                                : "Link works (\(info.size.map(formatBytes) ?? "unknown size")).",
+                            systemImage: "checkmark.circle.fill"
+                        )
+                        .foregroundStyle(Theme.green)
                     case .restartOnly(let reason):
                         Label(reason, systemImage: "exclamationmark.triangle.fill").foregroundStyle(Theme.orange)
                     case nil:

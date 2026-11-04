@@ -3,8 +3,14 @@ import SwiftUI
 
 struct SettingsView: View {
     enum Pane: String, CaseIterable {
-        case general = "General", downloads = "Downloads", network = "Network", remote = "Remote",
-             notifications = "Notifications", extensions = "Extensions", about = "About"
+        case general = "General"
+        case downloads = "Downloads"
+        case network = "Network"
+        case remote = "Remote"
+        case
+            notifications = "Notifications"
+        case extensions = "Extensions"
+        case about = "About"
 
         var symbol: String {
             switch self {
@@ -78,7 +84,11 @@ struct SettingsView: View {
         .frame(width: Self.width)
         // Natural height, whatever the window's size; the window follows it (SettingsWindow.fit).
         .fixedSize(horizontal: false, vertical: true)
-        .onGeometryChange(for: CGSize.self) { $0.size } action: { SettingsWindow.shared.fit($0) }
+        .onGeometryChange(for: CGSize.self) {
+            $0.size
+        } action: {
+            SettingsWindow.shared.fit($0)
+        }
         .frame(minHeight: 0, maxHeight: .infinity, alignment: .top)
         .font(.system(size: 13))
         .foregroundStyle(Theme.text)
@@ -170,9 +180,12 @@ private struct GeneralSettings: View {
                                 down: { settings.removeAfterDays = max(1, settings.removeAfterDays - 1) })
                         }
                     }
-                    PopUpMenu(options: [(ListCleanup.manually, "Manually"), (.whenFinished, "When Finished"),
-                                        (.afterDays, settings.removeAfterDays == 1 ? "Day" : "Days")],
-                              selection: $settings.removeFinished)
+                    PopUpMenu(
+                        options: [
+                            (ListCleanup.manually, "Manually"), (.whenFinished, "When Finished"),
+                            (.afterDays, settings.removeAfterDays == 1 ? "Day" : "Days"),
+                        ],
+                        selection: $settings.removeFinished)
                 }
             }
             SettingRow(title: "Remove downloads whose file was deleted", caption: "Also when the file is moved or renamed in Finder.") {
@@ -203,11 +216,13 @@ private struct ExtensionSettings: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Haul's extension adds “Download with Haul” to the menu for links. In browsers other than Safari, it also sends the downloads you start to Haul.")
-                .font(.system(size: 12))
-                .foregroundStyle(Theme.text2)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.horizontal, 12)
+            Text(
+                "Haul's extension adds “Download with Haul” to the menu for links. In browsers other than Safari, it also sends the downloads you start to Haul."
+            )
+            .font(.system(size: 12))
+            .foregroundStyle(Theme.text2)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.horizontal, 12)
             DesignGroup {
                 SafariExtensionRow()
                 ForEach(browsers, id: \.0.bundleIdentifier) { browser, app in
@@ -257,8 +272,10 @@ private struct SafariExtensionRow: View {
     @State private var enabled: Bool?
 
     var body: some View {
-        BrowserRow(name: "Safari", app: NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.Safari"),
-                   caption: enabled == true ? "Turned on" : "Turned off") {
+        BrowserRow(
+            name: "Safari", app: NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.Safari"),
+            caption: enabled == true ? "Turned on" : "Turned off"
+        ) {
             PillButton(title: enabled == true ? "Safari Settings…" : "Turn On in Safari…", height: 24, fontSize: 12) {
                 SFSafariApplication.showPreferencesForExtension(withIdentifier: Self.identifier)
             }
@@ -305,7 +322,10 @@ private struct DownloadSettings: View {
                         Label("Downloads", systemImage: settings.defaultFolder == nil ? "checkmark" : "folder")
                     }
                     if let custom = settings.defaultFolder {
-                        Button {} label: { Label(custom.url.lastPathComponent, systemImage: "checkmark") }
+                        Button {
+                        } label: {
+                            Label(custom.url.lastPathComponent, systemImage: "checkmark")
+                        }
                     }
                     Divider()
                     Button("Other…") {
@@ -429,16 +449,27 @@ private struct NetworkSettings: View {
             SettingRow(title: "Pause on Personal Hotspot", caption: "Also respects Low Data Mode.") {
                 DesignSwitch(isOn: $settings.pauseOnExpensive)
             }
-            SettingRow(title: "Multi-network downloads", caption: "Downloads go over Wi‑Fi, Ethernet and tethering at once. Not while a VPN or proxy is on."
-                       + (settings.pauseOnExpensive ? " Metered networks, like a phone’s hotspot or tethering, are left out while Pause on Personal Hotspot is on." : "")) {
-                DesignSwitch(isOn: Binding(get: { settings.useAllNetworks }, set: {
-                    settings.useAllNetworks = $0
-                    settings.allNetworksOfferAnswered = true
-                }))
+            SettingRow(
+                title: "Multi-network downloads",
+                caption: "Downloads go over Wi‑Fi, Ethernet and tethering at once. Not while a VPN or proxy is on."
+                    + (settings.pauseOnExpensive
+                        ? " Metered networks, like a phone’s hotspot or tethering, are left out while Pause on Personal Hotspot is on."
+                        : "")
+            ) {
+                DesignSwitch(
+                    isOn: Binding(
+                        get: { settings.useAllNetworks },
+                        set: {
+                            settings.useAllNetworks = $0
+                            settings.allNetworksOfferAnswered = true
+                        }))
             }
         }
         DesignGroup {
-            SettingRow(title: "Retry failed downloads", caption: "Up to \(DownloadStore.maxRetries) times after a dropped connection or server error.") {
+            SettingRow(
+                title: "Retry failed downloads",
+                caption: "Up to \(DownloadStore.maxRetries) times after a dropped connection or server error."
+            ) {
                 DesignSwitch(isOn: $settings.autoRetry)
             }
         }
@@ -470,7 +501,9 @@ private struct ProxySettingsGroup: View {
                 }
                 SettingRow(title: "Server") {
                     HStack(spacing: 6) {
-                        InputField(width: 180) { TextField(text: $settings.proxyHost, prompt: placeholder("proxy.example.com")) { EmptyView() } }
+                        InputField(width: 180) {
+                            TextField(text: $settings.proxyHost, prompt: placeholder("proxy.example.com")) { EmptyView() }
+                        }
                         Text(":").foregroundStyle(Theme.text2)
                         InputField(width: 56) {
                             TextField("", value: $settings.proxyPort, format: .number.grouping(.never))
@@ -487,7 +520,9 @@ private struct ProxySettingsGroup: View {
                         .onChange(of: password) { _, new in settings.setProxyPassword(new) }
                 }
                 SettingRow(title: "Don't use the proxy for", caption: "Separate hosts with commas. A domain covers its subdomains too.") {
-                    InputField(width: 180) { TextField(text: $settings.proxyBypass, prompt: placeholder("localhost, example.com")) { EmptyView() } }
+                    InputField(width: 180) {
+                        TextField(text: $settings.proxyBypass, prompt: placeholder("localhost, example.com")) { EmptyView() }
+                    }
                 }
             }
         }
@@ -507,8 +542,11 @@ private struct RemoteSettings: View {
     private var status: (title: String, caption: String?) {
         switch server.state {
         case .off, .starting: ("Starting…", nil)
-        case .running: (settings.remoteScope == .thisMac ? "Running on this Mac" : "Running on your network",
-                        server.pageURL?.absoluteString)
+        case .running:
+            (
+                settings.remoteScope == .thisMac ? "Running on this Mac" : "Running on your network",
+                server.pageURL?.absoluteString
+            )
         case .failed(let message): ("Couldn't start", message)
         }
     }
@@ -521,9 +559,12 @@ private struct RemoteSettings: View {
             // The Mac may have joined another network since the server started.
             .onAppear { server.refreshAddress() }
             if settings.remoteOn {
-                SettingRow(title: "Available to", caption: settings.remoteScope == .thisMac
-                    ? "Only this Mac, and a tunnel running on it."
-                    : "Devices on your network, and a tunnel on another machine.") {
+                SettingRow(
+                    title: "Available to",
+                    caption: settings.remoteScope == .thisMac
+                        ? "Only this Mac, and a tunnel running on it."
+                        : "Devices on your network, and a tunnel on another machine."
+                ) {
                     PopUpMenu(options: [(RemoteScope.thisMac, "This Mac"), (.network, "Network")], selection: $settings.remoteScope)
                 }
                 SettingRow(title: "Port") {
@@ -555,7 +596,9 @@ private struct RemoteSettings: View {
                         HStack(spacing: 6) {
                             PillButton(title: "Open", height: 24, fontSize: 12) { NSWorkspace.shared.open(url) }
                             PillButton(title: "Copy curl", height: 24, fontSize: 12) {
-                                copyToPasteboard("curl -u \(shellQuoted(":" + settings.remotePassword)) -d 'https://example.com/file.zip' \(url.absoluteString)add")
+                                copyToPasteboard(
+                                    "curl -u \(shellQuoted(":" + settings.remotePassword)) -d 'https://example.com/file.zip' \(url.absoluteString)add"
+                                )
                             }
                         }
                     }
@@ -570,14 +613,18 @@ private struct RemoteSettings: View {
                     .textSelection(.enabled)
                 }
             }
-            Text("Downloads added remotely start right away in the default folder. To add them from anywhere, point a tunnel such as cloudflared or Tailscale at the page.")
-                .font(.system(size: 12))
-                .foregroundStyle(Theme.text2)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 12)
+            Text(
+                "Downloads added remotely start right away in the default folder. To add them from anywhere, point a tunnel such as cloudflared or Tailscale at the page."
+            )
+            .font(.system(size: 12))
+            .foregroundStyle(Theme.text2)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 12)
             // The icon inline, so the text lines up with the note above.
-            Text("\(Text(Image(systemName: "exclamationmark.triangle.fill")).foregroundStyle(Theme.orange)) On the internet, anyone with the link can try to guess the password and add downloads to this Mac. Use a long password, and prefer a private tunnel such as Tailscale, or one behind a sign-in such as Cloudflare Access.")
+            Text(
+                "\(Text(Image(systemName: "exclamationmark.triangle.fill")).foregroundStyle(Theme.orange)) On the internet, anyone with the link can try to guess the password and add downloads to this Mac. Use a long password, and prefer a private tunnel such as Tailscale, or one behind a sign-in such as Cloudflare Access."
+            )
             .font(.system(size: 11))
             .foregroundStyle(Theme.text2)
             .fixedSize(horizontal: false, vertical: true)
@@ -589,7 +636,10 @@ private struct RemoteSettings: View {
     /// Keeps the saved password when the field is left empty.
     private func savePassword() {
         let typed = password.trimmingCharacters(in: .whitespaces)
-        if typed.isEmpty { return password = settings.remotePassword }
+        if typed.isEmpty {
+            password = settings.remotePassword
+            return
+        }
         if typed != settings.remotePassword { settings.setRemotePassword(typed) }
     }
 

@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+
 @testable import Haul
 
 struct BrowserContextTests {
@@ -10,16 +11,18 @@ struct BrowserContextTests {
         #expect(context.referer(for: URL(string: "https://site.example/get/a.zip")!) == "https://site.example/files/list?id=7")
         #expect(context.referer(for: URL(string: "https://cdn.example/a.zip")!) == "https://site.example/")
         #expect(context.referer(for: URL(string: "http://site.example/a.zip")!) == nil)
-        #expect(BrowserContext(page: URL(string: "http://site.example/p")!).referer(for: URL(string: "https://x.example/a")!) == "http://site.example/")
+        #expect(
+            BrowserContext(page: URL(string: "http://site.example/p")!).referer(for: URL(string: "https://x.example/a")!)
+                == "http://site.example/")
         #expect(BrowserContext().referer(for: URL(string: "https://site.example/a")!) == nil)
     }
 
     @Test func decodeDropsUnsafeValues() {
         let json = #"""
-        {"page": "javascript:alert(1)", "userAgent": "Agent\r\nX-Evil: 1",
-         "cookies": [{"name": "ok", "value": "1", "domain": ".site.example"},
-                     {"name": "bad", "value": "1\r\nX: y", "domain": "site.example"}]}
-        """#
+            {"page": "javascript:alert(1)", "userAgent": "Agent\r\nX-Evil: 1",
+             "cookies": [{"name": "ok", "value": "1", "domain": ".site.example"},
+                         {"name": "bad", "value": "1\r\nX: y", "domain": "site.example"}]}
+            """#
         let context = BrowserContext.decode(json)
         #expect(context?.page == nil)
         #expect(context?.userAgent == nil)
@@ -73,7 +76,9 @@ struct BrowserContextTests {
         let json = #"{"page":"https://site.example/p","userAgent":"UA","cookies":[{"name":"a","value":"b=c&d","domain":".site.example"}]}"#
         var allowed = CharacterSet.urlQueryAllowed
         allowed.remove(charactersIn: "&=+#?")
-        let url = URL(string: "haul://add?url=https%3A%2F%2Fsite.example%2Fa.zip&context=\(json.addingPercentEncoding(withAllowedCharacters: allowed)!)")!
+        let url = URL(
+            string:
+                "haul://add?url=https%3A%2F%2Fsite.example%2Fa.zip&context=\(json.addingPercentEncoding(withAllowedCharacters: allowed)!)")!
         #expect(IncomingLinks.links(in: url) == [URL(string: "https://site.example/a.zip")!])
         let context = IncomingLinks.browserContext(in: url)
         #expect(context?.userAgent == "UA")

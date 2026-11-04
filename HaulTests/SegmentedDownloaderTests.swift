@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+
 @testable import Haul
 
 /// Serves a generated file to ranged requests on `rangetest://<host>/`, with each host's
@@ -114,8 +115,9 @@ nonisolated final class RangeServer: URLProtocol, @unchecked Sendable {
         if throttled {
             // Never counted as open, so stopping it mustn't count it as closed.
             stopLock.withLock { stopped = true }
-            let response = HTTPURLResponse(url: url, statusCode: 429, httpVersion: "HTTP/1.1",
-                                           headerFields: ["Retry-After": "\(host.retryAfter)"])!
+            let response = HTTPURLResponse(
+                url: url, statusCode: 429, httpVersion: "HTTP/1.1",
+                headerFields: ["Retry-After": "\(host.retryAfter)"])!
             client!.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
             client!.urlProtocolDidFinishLoading(self)
             return
@@ -123,8 +125,9 @@ nonisolated final class RangeServer: URLProtocol, @unchecked Sendable {
         var headers = ["Content-Length": "\(end - start + 1)"]
         if !host.ignoreRange { headers["Content-Range"] = "bytes \(start)-\(end)/\(host.reportedSize ?? host.size)" }
         if let encoding = host.encoding { headers["Content-Encoding"] = encoding }
-        let response = HTTPURLResponse(url: url, statusCode: host.ignoreRange ? 200 : 206, httpVersion: "HTTP/1.1",
-                                       headerFields: headers)!
+        let response = HTTPURLResponse(
+            url: url, statusCode: host.ignoreRange ? 200 : 206, httpVersion: "HTTP/1.1",
+            headerFields: headers)!
         client!.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
         send(from: start, to: end, wait: host.delay(start))
     }
@@ -138,11 +141,13 @@ nonisolated final class RangeServer: URLProtocol, @unchecked Sendable {
             }
             client!.urlProtocol(self, didLoad: Self.content(offset...last))
             sent += last - offset + 1
-            if let host, last < end, host.lock.withLock({
-                guard host.drops > 0, sent >= host.dropAfter else { return false }
-                host.drops -= 1
-                return true
-            }) {
+            if let host, last < end,
+                host.lock.withLock({
+                    guard host.drops > 0, sent >= host.dropAfter else { return false }
+                    host.drops -= 1
+                    return true
+                })
+            {
                 // A moment after the data, so it's delivered before the error rather than discarded with it.
                 DispatchQueue.global().asyncAfter(deadline: .now() + 0.05) { [self] in
                     guard !stopLock.withLock({ stopped }) else { return }
@@ -174,13 +179,16 @@ struct SegmentedDownloaderTests {
 
     /// Downloads to the end; also returns the connection limit the engine settled on, if the server pushed back.
     private func download(_ url: URL, segments: [Segment], connections: Int, partURL: URL)
-        async -> (Result<Void, Error>, [Segment], serverLimit: Int?) {
+        async -> (Result<Void, Error>, [Segment], serverLimit: Int?)
+    {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [RangeServer.self]
         var engine: SegmentedDownloader?
         let result = await withCheckedContinuation { continuation in
-            engine = SegmentedDownloader(url: url, partURL: partURL, segments: segments, connections: connections,
-                                         browser: nil, limiter: RateLimiter(), configuration: config) {
+            engine = SegmentedDownloader(
+                url: url, partURL: partURL, segments: segments, connections: connections,
+                browser: nil, limiter: RateLimiter(), configuration: config
+            ) {
                 continuation.resume(returning: $0)
             }
             engine!.start()
@@ -206,8 +214,9 @@ struct SegmentedDownloaderTests {
         let part = partURL()
         defer { try? FileManager.default.removeItem(at: part) }
 
-        let (result, segments, _) = await download(RangeServer.serve(host), segments: Segment.split(size: size, connections: 3, resumable: true),
-                                                connections: 3, partURL: part)
+        let (result, segments, _) = await download(
+            RangeServer.serve(host), segments: Segment.split(size: size, connections: 3, resumable: true),
+            connections: 3, partURL: part)
         try result.get()
         #expect(segments.count > 3)
         expectWhole(segments, size: size)
@@ -224,8 +233,9 @@ struct SegmentedDownloaderTests {
         defer { try? FileManager.default.removeItem(at: part) }
 
         let started = Date()
-        let (result, segments, _) = await download(RangeServer.serve(host), segments: Segment.split(size: size, connections: 8, resumable: true),
-                                                connections: 8, partURL: part)
+        let (result, segments, _) = await download(
+            RangeServer.serve(host), segments: Segment.split(size: size, connections: 8, resumable: true),
+            connections: 8, partURL: part)
         try result.get()
         // Waiting out the minute-long Retry-After would leave every connection idle once the first three parts were
         // done; half of it leaves room for a slow machine.
@@ -244,9 +254,10 @@ struct SegmentedDownloaderTests {
         let part = partURL()
         defer { try? FileManager.default.removeItem(at: part) }
 
-        let (result, segments, serverLimit) = await download(RangeServer.serve(host),
-                                                             segments: Segment.split(size: size, connections: 3, resumable: true),
-                                                             connections: 3, partURL: part)
+        let (result, segments, serverLimit) = await download(
+            RangeServer.serve(host),
+            segments: Segment.split(size: size, connections: 3, resumable: true),
+            connections: 3, partURL: part)
         try result.get()
         let tries = host.lock.withLock { host.requests.filter { $0.start == third }.map(\.at) }
         try #require(tries.count == 4)
@@ -269,9 +280,11 @@ struct SegmentedDownloaderTests {
         defer { try? FileManager.default.removeItem(at: part) }
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [RangeServer.self]
-        let engine = SegmentedDownloader(url: RangeServer.serve(host), partURL: part,
-                                         segments: Segment.split(size: size, connections: 3, resumable: true), connections: 3,
-                                         browser: nil, limiter: RateLimiter(), configuration: config) { _ in }
+        let engine = SegmentedDownloader(
+            url: RangeServer.serve(host), partURL: part,
+            segments: Segment.split(size: size, connections: 3, resumable: true), connections: 3,
+            browser: nil, limiter: RateLimiter(), configuration: config
+        ) { _ in }
         engine.start()
         defer { engine.cancel() }
         var at: [Int64] = []
@@ -313,9 +326,11 @@ struct SegmentedDownloaderTests {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [RangeServer.self]
         let (finished, done) = AsyncStream<Result<Void, Error>>.makeStream()
-        let engine = SegmentedDownloader(url: RangeServer.serve(host), partURL: part,
-                                         segments: Segment.split(size: size, connections: 3, resumable: true), connections: 3,
-                                         browser: nil, limiter: RateLimiter(), configuration: config) {
+        let engine = SegmentedDownloader(
+            url: RangeServer.serve(host), partURL: part,
+            segments: Segment.split(size: size, connections: 3, resumable: true), connections: 3,
+            browser: nil, limiter: RateLimiter(), configuration: config
+        ) {
             done.yield($0)
             done.finish()
         }
@@ -347,8 +362,9 @@ struct SegmentedDownloaderTests {
         let part = partURL()
         defer { try? FileManager.default.removeItem(at: part) }
 
-        let (result, segments, _) = await download(RangeServer.serve(host), segments: Segment.split(size: size, connections: 2, resumable: true),
-                                                connections: 2, partURL: part)
+        let (result, segments, _) = await download(
+            RangeServer.serve(host), segments: Segment.split(size: size, connections: 2, resumable: true),
+            connections: 2, partURL: part)
         try result.get()
         expectWhole(segments, size: size)
         #expect(try Data(contentsOf: part) == RangeServer.content(0...size - 1))
@@ -361,8 +377,9 @@ struct SegmentedDownloaderTests {
         let part = partURL()
         defer { try? FileManager.default.removeItem(at: part) }
 
-        let (result, _, _) = await download(RangeServer.serve(host), segments: Segment.split(size: size, connections: 2, resumable: true),
-                                         connections: 2, partURL: part)
+        let (result, _, _) = await download(
+            RangeServer.serve(host), segments: Segment.split(size: size, connections: 2, resumable: true),
+            connections: 2, partURL: part)
         guard case .failure(let error) = result, case .wrongRange? = error as? DownloadError else {
             Issue.record("expected wrongRange, got \(result)")
             return
@@ -376,8 +393,9 @@ struct SegmentedDownloaderTests {
         let part = partURL()
         defer { try? FileManager.default.removeItem(at: part) }
 
-        let (result, segments, _) = await download(RangeServer.serve(host), segments: Segment.split(size: size, connections: 2, resumable: true),
-                                                connections: 2, partURL: part)
+        let (result, segments, _) = await download(
+            RangeServer.serve(host), segments: Segment.split(size: size, connections: 2, resumable: true),
+            connections: 2, partURL: part)
         guard case .failure(let error) = result, case .fileChanged? = error as? DownloadError else {
             Issue.record("expected fileChanged, got \(result)")
             return
@@ -426,8 +444,9 @@ struct SegmentedDownloaderTests {
         let part = partURL()
         defer { try? FileManager.default.removeItem(at: part) }
 
-        let (result, segments, _) = await download(RangeServer.serve(host), segments: Segment.split(size: size, connections: 1, resumable: true),
-                                                connections: 1, partURL: part)
+        let (result, segments, _) = await download(
+            RangeServer.serve(host), segments: Segment.split(size: size, connections: 1, resumable: true),
+            connections: 1, partURL: part)
         try result.get()
         #expect(host.lock.withLock { host.drops } == 0)
         expectWhole(segments, size: size)
@@ -443,8 +462,9 @@ struct SegmentedDownloaderTests {
         let part = partURL()
         defer { try? FileManager.default.removeItem(at: part) }
 
-        let (result, _, _) = await download(RangeServer.serve(host), segments: Segment.split(size: size, connections: 1, resumable: true),
-                                         connections: 1, partURL: part)
+        let (result, _, _) = await download(
+            RangeServer.serve(host), segments: Segment.split(size: size, connections: 1, resumable: true),
+            connections: 1, partURL: part)
         guard case .failure(let error) = result, (error as? URLError)?.code == .networkConnectionLost else {
             Issue.record("expected the dropped connection's error, got \(result)")
             return
@@ -462,8 +482,9 @@ struct SegmentedDownloaderTests {
         let part = partURL()
         defer { try? FileManager.default.removeItem(at: part) }
 
-        let (result, segments, _) = await download(RangeServer.serve(host), segments: Segment.split(size: size, connections: 1, resumable: true),
-                                                connections: 1, partURL: part)
+        let (result, segments, _) = await download(
+            RangeServer.serve(host), segments: Segment.split(size: size, connections: 1, resumable: true),
+            connections: 1, partURL: part)
         try result.get()
         expectWhole(segments, size: size)
         #expect(try Data(contentsOf: part) == RangeServer.content(0...size - 1))
@@ -475,8 +496,9 @@ struct SegmentedDownloaderTests {
         let part = partURL()
         defer { try? FileManager.default.removeItem(at: part) }
 
-        let (result, segments, _) = await download(RangeServer.serve(host), segments: Segment.split(size: size, connections: 4, resumable: true),
-                                                connections: 4, partURL: part)
+        let (result, segments, _) = await download(
+            RangeServer.serve(host), segments: Segment.split(size: size, connections: 4, resumable: true),
+            connections: 4, partURL: part)
         try result.get()
         let ids = host.lock.withLock { host.taskIDs }
         // A shared session would number the first four 1, 2, 3, 4; separate sessions, each never sharing
@@ -493,8 +515,9 @@ struct SegmentedDownloaderTests {
         let part = partURL()
         defer { try? FileManager.default.removeItem(at: part) }
 
-        let (result, _, _) = await download(RangeServer.serve(host), segments: Segment.split(size: size, connections: 2, resumable: true),
-                                         connections: 2, partURL: part)
+        let (result, _, _) = await download(
+            RangeServer.serve(host), segments: Segment.split(size: size, connections: 2, resumable: true),
+            connections: 2, partURL: part)
         try result.get()
         let sent = host.lock.withLock { host.acceptEncodings }
         #expect(!sent.isEmpty && sent.allSatisfy { $0 == "identity" })
@@ -507,8 +530,9 @@ struct SegmentedDownloaderTests {
         let part = partURL()
         defer { try? FileManager.default.removeItem(at: part) }
 
-        let (result, segments, _) = await download(RangeServer.serve(host), segments: Segment.split(size: size, connections: 2, resumable: true),
-                                                connections: 2, partURL: part)
+        let (result, segments, _) = await download(
+            RangeServer.serve(host), segments: Segment.split(size: size, connections: 2, resumable: true),
+            connections: 2, partURL: part)
         guard case .failure(let error) = result, case .noRangeSupport? = error as? DownloadError else {
             Issue.record("expected noRangeSupport, got \(result)")
             return

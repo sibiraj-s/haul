@@ -38,7 +38,8 @@ final class CommandLineInstall {
         let fm = FileManager.default
         // attributesOfItem doesn't follow links, so a link whose app has gone still counts.
         let exists = (try? fm.attributesOfItem(atPath: Self.link.path)) != nil
-        state = Self.state(exists: exists, destination: try? fm.destinationOfSymbolicLink(atPath: Self.link.path), app: Bundle.main.bundleURL)
+        state = Self.state(
+            exists: exists, destination: try? fm.destinationOfSymbolicLink(atPath: Self.link.path), app: Bundle.main.bundleURL)
     }
 
     static func state(exists: Bool, destination: String?, app: URL) -> State {
@@ -59,7 +60,8 @@ final class CommandLineInstall {
     /// Haul was moved or renamed after installing: point the broken link at this copy.
     private func repair() {
         guard case .otherHaul(let old) = state, !FileManager.default.fileExists(atPath: old),
-              !Self.isTemporary(Bundle.main.bundleURL) else { return }
+            !Self.isTemporary(Bundle.main.bundleURL)
+        else { return }
         try? link()
     }
 
@@ -77,16 +79,19 @@ final class CommandLineInstall {
         switch state {
         case .installed: uninstall()
         case .taken:
-            alert("~/.local/bin/haul Already Exists",
-                  "Something other than Haul's command is there. Move or delete it, then try again.")
+            alert(
+                "~/.local/bin/haul Already Exists",
+                "Something other than Haul's command is there. Move or delete it, then try again.")
         case .notInstalled, .otherHaul: install()
         }
     }
 
     private func install() {
         guard !Self.isTemporary(Bundle.main.bundleURL) else {
-            return alert("Move Haul to Applications First",
-                         "Haul is running from the disk image or a temporary location, so the command would stop working. Drag Haul to Applications, open it from there, and try again.")
+            return alert(
+                "Move Haul to Applications First",
+                "Haul is running from the disk image or a temporary location, so the command would stop working. Drag Haul to Applications, open it from there, and try again."
+            )
         }
         do {
             try link()
@@ -106,7 +111,8 @@ final class CommandLineInstall {
         let line = shell?.line ?? Shell.exportLine
         let alert = NSAlert()
         alert.messageText = "Add ~/.local/bin to Your PATH"
-        alert.informativeText = "Haul put the haul command in ~/.local/bin, which your shell doesn't search yet. Add this line to \(shell.map { "~/\($0.file)" } ?? "your shell's startup file"), then open a new Terminal window."
+        alert.informativeText =
+            "Haul put the haul command in ~/.local/bin, which your shell doesn't search yet. Add this line to \(shell.map { "~/\($0.file)" } ?? "your shell's startup file"), then open a new Terminal window."
         alert.accessoryView = Self.codeLabel(line)
         if let shell { alert.addButton(withTitle: "Add to ~/\(shell.file)") }
         alert.addButton(withTitle: "Copy Line")
@@ -118,7 +124,8 @@ final class CommandLineInstall {
                 self.alert("Added to ~/\(shell.file)", "Open a new Terminal window, then run haul add <link>.")
             } catch {
                 copyToPasteboard(line)
-                self.alert("Couldn't Change ~/\(shell.file)", "\(error.localizedDescription) The line is copied, so you can add it yourself.")
+                self.alert(
+                    "Couldn't Change ~/\(shell.file)", "\(error.localizedDescription) The line is copied, so you can add it yourself.")
             }
         } else if response == (shell == nil ? .alertFirstButtonReturn : .alertSecondButtonReturn) {
             copyToPasteboard(line)
@@ -173,8 +180,10 @@ nonisolated struct Shell: Equatable {
         switch name {
         case "zsh": Shell(file: ".zshrc", line: exportLine, startupFiles: [".zshenv", ".zprofile", ".zshrc", ".zlogin"])
         case "bash": Shell(file: ".bash_profile", line: exportLine, startupFiles: [".bash_profile", ".bashrc", ".profile"])
-        case "fish": Shell(file: ".config/fish/config.fish", line: "fish_add_path ~/.local/bin",
-                           startupFiles: [".config/fish/config.fish", ".config/fish/fish_variables"])
+        case "fish":
+            Shell(
+                file: ".config/fish/config.fish", line: "fish_add_path ~/.local/bin",
+                startupFiles: [".config/fish/config.fish", ".config/fish/fish_variables"])
         default: nil
         }
     }

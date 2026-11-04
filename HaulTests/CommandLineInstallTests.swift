@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+
 @testable import Haul
 
 struct CommandLineInstallTests {
@@ -15,8 +16,9 @@ struct CommandLineInstallTests {
     @Test func onlyHaulsOwnLinksAreReplaced() {
         #expect(CommandLineInstall.state(exists: false, destination: nil, app: app) == .notInstalled)
         #expect(CommandLineInstall.state(exists: true, destination: "/Applications/Haul.app/Contents/Helpers/haul", app: app) == .installed)
-        #expect(CommandLineInstall.state(exists: true, destination: "/Users/me/Old/Haul.app/Contents/Helpers/haul", app: app)
-            == .otherHaul("/Users/me/Old/Haul.app/Contents/Helpers/haul"))
+        #expect(
+            CommandLineInstall.state(exists: true, destination: "/Users/me/Old/Haul.app/Contents/Helpers/haul", app: app)
+                == .otherHaul("/Users/me/Old/Haul.app/Contents/Helpers/haul"))
         #expect(CommandLineInstall.state(exists: true, destination: "/opt/tools/haul", app: app) == .taken)
         #expect(CommandLineInstall.state(exists: true, destination: nil, app: app) == .taken)
     }

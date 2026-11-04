@@ -39,18 +39,24 @@ final class RemoteServer {
         let settings = AppSettings.shared
         pageURL = nil
         networkURL = nil
-        guard settings.remoteOn else { return state = .off }
+        guard settings.remoteOn else {
+            state = .off
+            return
+        }
         guard (1...65535).contains(settings.remotePort), let port = NWEndpoint.Port(rawValue: UInt16(settings.remotePort)) else {
-            return state = .failed("Choose a port from 1 to 65535.")
+            state = .failed("Choose a port from 1 to 65535.")
+            return
         }
         // "Network" listens on every interface, loopback included; "This Mac" only on loopback.
         let listener: NWListener
         do {
-            listener = settings.remoteScope == .thisMac
+            listener =
+                settings.remoteScope == .thisMac
                 ? try NWListener(using: Self.parameters(.ipv4(.loopback), port))
                 : try NWListener(using: Self.parameters(nil, port), on: port)
         } catch {
-            return state = .failed(error.localizedDescription)
+            state = .failed(error.localizedDescription)
+            return
         }
         if settings.remoteScope == .thisMac, let ipv6 = try? NWListener(using: Self.parameters(.ipv6(.loopback), port)) {
             ipv6.stateUpdateHandler = { [weak ipv6] new in
@@ -225,7 +231,8 @@ final class RemoteServer {
             return
         }
         pageURL = URL(string: "http://localhost:\(settings.remotePort)/")
-        networkURL = settings.remoteScope == .network
+        networkURL =
+            settings.remoteScope == .network
             ? Self.networkAddresses().first.flatMap { URL(string: "http://\($0):\(settings.remotePort)/") } : nil
     }
 
@@ -239,7 +246,8 @@ final class RemoteServer {
             let entry = pointer.pointee
             let flags = Int32(entry.ifa_flags)
             guard let address = entry.ifa_addr, address.pointee.sa_family == UInt8(AF_INET),
-                  flags & IFF_UP != 0, flags & IFF_LOOPBACK == 0, String(cString: entry.ifa_name).hasPrefix("en") else { continue }
+                flags & IFF_UP != 0, flags & IFF_LOOPBACK == 0, String(cString: entry.ifa_name).hasPrefix("en")
+            else { continue }
             var host = [CChar](repeating: 0, count: Int(NI_MAXHOST))
             if getnameinfo(address, socklen_t(address.pointee.sa_len), &host, socklen_t(host.count), nil, 0, NI_NUMERICHOST) == 0 {
                 addresses.append(String(decoding: host.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self))
@@ -256,7 +264,9 @@ nonisolated enum RemoteAPI {
 
     enum Route: Equatable {
         case page, auth, add, list
-        case pause(UUID), resume(UUID), remove(UUID)
+        case pause(UUID)
+        case resume(UUID)
+        case remove(UUID)
         case notFound, methodNotAllowed
     }
 
@@ -324,7 +334,8 @@ nonisolated enum RemoteAPI {
         case "bearer": given = parts[1]
         case "basic":
             guard let data = Data(base64Encoded: parts[1]), let credentials = String(data: data, encoding: .utf8),
-                  let colon = credentials.firstIndex(of: ":") else { return false }
+                let colon = credentials.firstIndex(of: ":")
+            else { return false }
             given = String(credentials[credentials.index(after: colon)...])
         default: return false
         }
@@ -409,8 +420,10 @@ nonisolated struct HTTPRequest: Equatable {
         let bodyEnd = end.upperBound + length
         guard data.count >= bodyEnd else { return .incomplete }
         let target = String(requestLine[1])
-        return .complete(HTTPRequest(method: String(requestLine[0]), path: String(target.prefix { $0 != "?" }),
-                                     headers: headers, body: Data(data[end.upperBound..<bodyEnd])))
+        return .complete(
+            HTTPRequest(
+                method: String(requestLine[0]), path: String(target.prefix { $0 != "?" }),
+                headers: headers, body: Data(data[end.upperBound..<bodyEnd])))
     }
 }
 
@@ -432,13 +445,18 @@ nonisolated struct HTTPResponse {
     /// may run in it, frame it or be sent from it.
     static func page() -> HTTPResponse {
         guard let body = pageBody else { return json(500, error: "The page is missing from Haul.") }
-        return HTTPResponse(status: 200, headers: [
-            ("Content-Type", "text/html; charset=utf-8"),
-            ("Content-Security-Policy", "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'self'; form-action 'none'; frame-ancestors 'none'; base-uri 'none'"),
-            ("Referrer-Policy", "no-referrer"),
-            ("X-Content-Type-Options", "nosniff"),
-            ("Cache-Control", "no-store"),
-        ], body: body)
+        return HTTPResponse(
+            status: 200,
+            headers: [
+                ("Content-Type", "text/html; charset=utf-8"),
+                (
+                    "Content-Security-Policy",
+                    "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'self'; form-action 'none'; frame-ancestors 'none'; base-uri 'none'"
+                ),
+                ("Referrer-Policy", "no-referrer"),
+                ("X-Content-Type-Options", "nosniff"),
+                ("Cache-Control", "no-store"),
+            ], body: body)
     }
 
     private static let pageBody: Data? = {
@@ -447,13 +465,17 @@ nonisolated struct HTTPResponse {
         return body
     }()
 
-    private static let reasons = [200: "OK", 400: "Bad Request", 401: "Unauthorized", 403: "Forbidden", 404: "Not Found",
-                                  405: "Method Not Allowed", 409: "Conflict", 413: "Content Too Large", 429: "Too Many Requests",
-                                  500: "Internal Server Error"]
+    private static let reasons = [
+        200: "OK", 400: "Bad Request", 401: "Unauthorized", 403: "Forbidden", 404: "Not Found",
+        405: "Method Not Allowed", 409: "Conflict", 413: "Content Too Large", 429: "Too Many Requests",
+        500: "Internal Server Error",
+    ]
 
     var data: Data {
         let reason = Self.reasons[status] ?? ""
-        let head = (["HTTP/1.1 \(status) \(reason)"] + (headers + [("Content-Length", "\(body.count)"), ("Connection", "close")]).map { "\($0): \($1)" })
+        let head =
+            (["HTTP/1.1 \(status) \(reason)"]
+            + (headers + [("Content-Length", "\(body.count)"), ("Connection", "close")]).map { "\($0): \($1)" })
             .joined(separator: "\r\n") + "\r\n\r\n"
         return Data(head.utf8) + body
     }

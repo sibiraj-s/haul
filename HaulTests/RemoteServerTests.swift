@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+
 @testable import Haul
 
 struct RemoteServerTests {
@@ -15,8 +16,12 @@ struct RemoteServerTests {
 
     @Test func parsesARequestWithABody() {
         let parsed = request("POST /add?x=1 HTTP/1.1\r\nHost: h\r\nContent-Type: text/plain\r\nContent-Length: 5\r\n\r\nhello")
-        #expect(parsed == .complete(HTTPRequest(method: "POST", path: "/add", headers: ["host": "h", "content-type": "text/plain", "content-length": "5"],
-                                                body: Data("hello".utf8))))
+        #expect(
+            parsed
+                == .complete(
+                    HTTPRequest(
+                        method: "POST", path: "/add", headers: ["host": "h", "content-type": "text/plain", "content-length": "5"],
+                        body: Data("hello".utf8))))
     }
 
     @Test func waitsForTheRestOfTheRequest() {
@@ -76,7 +81,9 @@ struct RemoteServerTests {
     @Test func readsLinksFromJSON() throws {
         let json = ["content-type": "application/json"]
         let urls = [URL(string: "https://a.com/x?sig=1&e=2")!, URL(string: "http://b.com/y")!]
-        #expect(try RemoteAPI.links(in: post(#"{"urls": ["https://a.com/x?sig=1&e=2", "http://b.com/y", "file:///etc/hosts"]}"#, headers: json)).get() == urls)
+        #expect(
+            try RemoteAPI.links(in: post(#"{"urls": ["https://a.com/x?sig=1&e=2", "http://b.com/y", "file:///etc/hosts"]}"#, headers: json))
+                .get() == urls)
         #expect(try RemoteAPI.links(in: post(#"["https://a.com/x?sig=1&e=2", "http://b.com/y"]"#, headers: json)).get() == urls)
         #expect(throws: RemoteAPI.Failure.self) { try RemoteAPI.links(in: post(#"{"links": []}"#, headers: json)).get() }
     }

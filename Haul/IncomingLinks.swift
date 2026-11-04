@@ -10,14 +10,15 @@ enum IncomingLinks {
     /// The download links in a `haul://add` URL; empty when it isn't one.
     nonisolated static func links(in url: URL) -> [URL] {
         guard url.scheme?.lowercased() == scheme, url.host()?.lowercased() == "add",
-              let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems else { return [] }
+            let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems
+        else { return [] }
         return items.filter { $0.name == "url" }.compactMap { $0.value.flatMap(AddDownloadPanel.link) }
     }
 
     /// What Safari sent with the links in a `haul://add` URL (see `BrowserContext`).
     nonisolated static func browserContext(in url: URL) -> BrowserContext? {
         guard !links(in: url).isEmpty,
-              let json = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "context" })?.value
+            let json = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "context" })?.value
         else { return nil }
         return BrowserContext.decode(json)
     }

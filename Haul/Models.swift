@@ -233,7 +233,9 @@ struct Download: Codable, Identifiable {
     var extracting = false
 
     enum CodingKeys: String, CodingKey {
-        case id, url, name, size, status, connections, resumable, segments, added, finished, error, fileURL, sha256, renamed, etag, lastModified, issue, folderBookmark, folderName, queueOrder, replaceExisting, authRealm, authDigest, extract, extractedURL, extractError, whenDone, browser
+        case id, url, name, size, status, connections, resumable, segments, added, finished, error, fileURL, sha256, renamed, etag,
+            lastModified, issue, folderBookmark, folderName, queueOrder, replaceExisting, authRealm, authDigest, extract, extractedURL,
+            extractError, whenDone, browser
     }
 
     var kind: FileKind { .of(name) }
@@ -262,10 +264,14 @@ struct Download: Codable, Identifiable {
         // At least a byte each, for files smaller than the number of connections.
         let parts = min(count, size)
         return (0..<parts).map { k in
-            let from = size * k / parts, to = size * (k + 1) / parts
-            let done = status == .completed ? to - from : segments.reduce(0) { sum, s in
-                sum + max(0, min(to, s.start + s.done) - max(from, s.start))
-            }
+            let from = size * k / parts
+            let to = size * (k + 1) / parts
+            let done =
+                status == .completed
+                ? to - from
+                : segments.reduce(0) { sum, s in
+                    sum + max(0, min(to, s.start + s.done) - max(from, s.start))
+                }
             let active = status == .downloading && writingAt.contains { from <= $0 && $0 < to }
             return ProgressBar(id: Int(k), done: done, length: to - from, active: active)
         }
@@ -347,7 +353,12 @@ extension Color {
 
 // MARK: - Formatting (binary units: 1 KB = 1024 bytes)
 
-private let KB = 1024.0, MB = KB * 1024, GB = MB * 1024
+// swift-format-ignore: AlwaysUseLowerCamelCase
+private let KB = 1024.0
+// swift-format-ignore: AlwaysUseLowerCamelCase
+private let MB = KB * 1024
+// swift-format-ignore: AlwaysUseLowerCamelCase
+private let GB = MB * 1024
 
 func formatBytes<T: BinaryInteger>(_ bytes: T) -> String { formatBytes(Double(bytes)) }
 

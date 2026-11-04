@@ -32,8 +32,9 @@ nonisolated struct BrowserContext: Codable, Equatable, Sendable {
         guard var context = try? JSONDecoder().decode(BrowserContext.self, from: Data(json.utf8)) else { return nil }
         if let page = context.page, !["http", "https"].contains(page.scheme?.lowercased() ?? "") { context.page = nil }
         if let agent = context.userAgent, agent.count > 512 || !isHeaderSafe(agent) { context.userAgent = nil }
-        context.cookies = Array(context.cookies.filter { [$0.name, $0.value, $0.domain, $0.path ?? ""].allSatisfy(isHeaderSafe) }
-            .prefix(maxCookies))
+        context.cookies = Array(
+            context.cookies.filter { [$0.name, $0.value, $0.domain, $0.path ?? ""].allSatisfy(isHeaderSafe) }
+                .prefix(maxCookies))
         return context.isEmpty ? nil : context
     }
 
@@ -63,7 +64,8 @@ nonisolated struct BrowserContext: Codable, Equatable, Sendable {
         components?.fragment = nil
         components?.user = nil
         components?.password = nil
-        let sameOrigin = page.scheme?.lowercased() == url.scheme?.lowercased() && page.host()?.lowercased() == url.host()?.lowercased()
+        let sameOrigin =
+            page.scheme?.lowercased() == url.scheme?.lowercased() && page.host()?.lowercased() == url.host()?.lowercased()
             && page.port == url.port
         if !sameOrigin {
             components?.path = "/"

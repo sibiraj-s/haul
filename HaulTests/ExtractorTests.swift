@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+
 @testable import Haul
 
 struct ExtractorTests {
@@ -22,7 +23,8 @@ struct ExtractorTests {
         let dir = try Self.scratch()
         defer { try? FileManager.default.removeItem(at: dir) }
         try Self.write("one", to: dir.appending(path: "src/Tool/readme.txt"))
-        try Self.run("/usr/bin/ditto", ["-c", "-k", "--keepParent", dir.appending(path: "src/Tool").path, dir.appending(path: "Tool-1.0.zip").path])
+        try Self.run(
+            "/usr/bin/ditto", ["-c", "-k", "--keepParent", dir.appending(path: "src/Tool").path, dir.appending(path: "Tool-1.0.zip").path])
 
         let result = try Extractor.extract(dir.appending(path: "Tool-1.0.zip"))
         #expect(result == dir.appending(path: "Tool"))
@@ -37,7 +39,9 @@ struct ExtractorTests {
         defer { try? FileManager.default.removeItem(at: dir) }
         try Self.write("a", to: dir.appending(path: "src/a.txt"))
         try Self.write("b", to: dir.appending(path: "src/b.txt"))
-        try Self.run("/usr/bin/bsdtar", ["-c", "-z", "-f", dir.appending(path: "pair.tar.gz").path, "-C", dir.appending(path: "src").path, "a.txt", "b.txt"])
+        try Self.run(
+            "/usr/bin/bsdtar",
+            ["-c", "-z", "-f", dir.appending(path: "pair.tar.gz").path, "-C", dir.appending(path: "src").path, "a.txt", "b.txt"])
 
         let result = try Extractor.extract(dir.appending(path: "pair.tar.gz"))
         #expect(result == dir.appending(path: "pair"))

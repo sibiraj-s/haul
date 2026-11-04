@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+
 @testable import Haul
 
 /// Pure settings logic only: `AppSettings.shared` writes to the app's real preferences.

@@ -22,7 +22,8 @@ nonisolated struct NetworkLink: Equatable, Sendable {
     /// as two links to the same router share its uplink.
     static func usable(_ links: [NetworkLink], vpn: Bool, proxy: Bool, allowMetered: Bool) -> [NetworkLink] {
         guard !vpn, !proxy else { return [] }
-        var names = Set<String>(), routers = Set<String>()
+        var names = Set<String>()
+        var routers = Set<String>()
         return links.filter { link in
             guard link.type == .wifi || link.type == .wiredEthernet, names.insert(link.name).inserted else { return false }
             guard allowMetered || !link.metered else { return false }
@@ -36,7 +37,8 @@ extension NetworkLink {
     static func displayName(_ name: String) -> String {
         if let known = displayNames.withLock({ $0[name] }) { return known }
         let interfaces = SCNetworkInterfaceCopyAll() as? [SCNetworkInterface] ?? []
-        let found = interfaces.first { SCNetworkInterfaceGetBSDName($0) as String? == name }
+        let found =
+            interfaces.first { SCNetworkInterfaceGetBSDName($0) as String? == name }
             .flatMap { SCNetworkInterfaceGetLocalizedDisplayName($0) as String? } ?? name
         displayNames.withLock { $0[name] = found }
         return found
@@ -130,7 +132,8 @@ nonisolated enum NetworkLease {
             }
         }
         let marker = Array("ANDROID_METERED".utf8)
-        let metered = vendor.count >= marker.count
+        let metered =
+            vendor.count >= marker.count
             && (0...(vendor.count - marker.count)).contains { Array(vendor[$0..<($0 + marker.count)]) == marker }
         return Lease(router: router, metered: metered)
     }
@@ -177,13 +180,23 @@ nonisolated final class NetworkWatch: Sendable {
     /// One change usually brings an update from each monitor; they're taken together, so each
     /// lease is read once.
     private func update() {
-        guard scheduled.withLock({ waiting in defer { waiting = true }; return !waiting }) else { return }
+        guard
+            scheduled.withLock({ waiting in
+                defer { waiting = true }
+                return !waiting
+            })
+        else { return }
         queue.asyncAfter(deadline: .now() + 0.3) { [weak self] in
             guard let self else { return }
             scheduled.withLock { $0 = false }
             let (all, byType) = paths.withLock { ($0.all, $0.byType) }
             let state = Self.state(all: all, byType: byType)
-            guard last.withLock({ old in defer { old = state }; return old != state }) else { return }
+            guard
+                last.withLock({ old in
+                    defer { old = state }
+                    return old != state
+                })
+            else { return }
             changed(state)
         }
     }
@@ -201,9 +214,10 @@ nonisolated final class NetworkWatch: Sendable {
         let links = all.availableInterfaces.compactMap { interface -> NetworkLink? in
             guard let path = byType[interface.type], path.status == .satisfied else { return nil }
             let lease = NetworkLease.read(interface)
-            return NetworkLink(name: interface.name, type: interface.type,
-                               metered: path.isExpensive || path.isConstrained || lease?.metered == true,
-                               router: lease?.routerHardware, interface: interface)
+            return NetworkLink(
+                name: interface.name, type: interface.type,
+                metered: path.isExpensive || path.isConstrained || lease?.metered == true,
+                router: lease?.routerHardware, interface: interface)
         }
         let primary = all.availableInterfaces.first { $0.type != .other && $0.type != .loopback }?.name
         return State(links: links, vpn: vpn, primary: primary)

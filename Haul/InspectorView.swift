@@ -54,12 +54,13 @@ struct InspectorView: View {
     private func progress(_ d: Download) -> some View {
         let bars = d.progressBars
         let hovered = bars.first { $0.id == hoveredBar }
-        let color: Color = switch d.status {
-        case .completed: Theme.green
-        case .failed: Theme.red
-        case .downloading: Theme.accent
-        default: Theme.text3
-        }
+        let color: Color =
+            switch d.status {
+            case .completed: Theme.green
+            case .failed: Theme.red
+            case .downloading: Theme.accent
+            default: Theme.text3
+            }
         return VStack(spacing: 8) {
             HStack(alignment: .firstTextBaseline) {
                 Text(d.status.label).fontWeight(.semibold).foregroundStyle(statusColor(d))
@@ -156,14 +157,18 @@ struct InspectorView: View {
     }
 
     private func details(_ d: Download) -> some View {
-        let checksum: (String, Color) = d.status != .completed
+        let checksum: (String, Color) =
+            d.status != .completed
             ? ("After download", Theme.text2)
             : d.sha256.map { ("SHA-256 \($0.prefix(12))…", Theme.green) }
-            ?? (store.settings.computeChecksum ? "Computing…" : "Not computed", Theme.text2)
+                ?? (store.settings.computeChecksum ? "Computing…" : "Not computed", Theme.text2)
         return DesignGroup {
             DetailRow("Size") {
-                Text(d.status == .completed ? formatBytes(d.size ?? d.received) : "\(formatBytes(d.received)) of \(d.size.map(formatBytes) ?? "?")")
-                    .monospacedDigit()
+                Text(
+                    d.status == .completed
+                        ? formatBytes(d.size ?? d.received) : "\(formatBytes(d.received)) of \(d.size.map(formatBytes) ?? "?")"
+                )
+                .monospacedDigit()
             }
             DetailRow("Source") { Text(d.host) }
             DetailRow("Link") {

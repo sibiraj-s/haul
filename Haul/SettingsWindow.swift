@@ -37,8 +37,9 @@ final class SettingsWindow {
         container.addSubview(hosting)
         self.hosting = hosting
 
-        let window = NSWindow(contentRect: frame, styleMask: [.titled, .closable, .fullSizeContentView],
-                              backing: .buffered, defer: false)
+        let window = NSWindow(
+            contentRect: frame, styleMask: [.titled, .closable, .fullSizeContentView],
+            backing: .buffered, defer: false)
         window.contentView = container
         window.backgroundColor = NSColor(Theme.win)
         window.titlebarAppearsTransparent = true

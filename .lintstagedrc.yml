@@ -1,1 +1,4 @@
-'*': oxfmt --no-error-on-unmatched-pattern
+'*.swift':
+  - xcrun swift-format format -i
+  - xcrun swift-format lint --strict
+'!(*.swift)': oxfmt --no-error-on-unmatched-pattern

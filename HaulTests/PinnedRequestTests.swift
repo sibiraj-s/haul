@@ -2,6 +2,7 @@ import Foundation
 import Network
 import Synchronization
 import Testing
+
 @testable import Haul
 
 /// An HTTP server on 127.0.0.1 for connections that don't go through URLSession. Each connection's
@@ -42,7 +43,10 @@ nonisolated final class LocalHTTPServer: @unchecked Sendable {
         }
         listener.start(queue: queue)
         var port: UInt16?
-        for await value in ready.stream { port = value; break }
+        for await value in ready.stream {
+            port = value
+            break
+        }
         guard let port else { throw URLError(.cannotConnectToHost) }
         self.port = port
     }
@@ -76,10 +80,12 @@ nonisolated final class LocalHTTPServer: @unchecked Sendable {
         }
         var rest = reply
         rest.pieces.removeFirst()
-        connection.send(content: first, completion: .contentProcessed { [weak self] error in
-            guard error == nil else { return connection.cancel() }
-            self?.queue.asyncAfter(deadline: .now() + reply.pause) { self?.send(rest, on: connection) }
-        })
+        connection.send(
+            content: first,
+            completion: .contentProcessed { [weak self] error in
+                guard error == nil else { return connection.cancel() }
+                self?.queue.asyncAfter(deadline: .now() + reply.pause) { self?.send(rest, on: connection) }
+            })
     }
 
     /// A reply head followed by `body`, as one piece each.
@@ -92,10 +98,13 @@ nonisolated final class LocalHTTPServer: @unchecked Sendable {
     /// `headers` (validators) chosen for each request head.
     /// A status of "drop" closes the connection without a reply.
     /// `corrupt` requests get different bytes, as from a server with another build of the file.
-    static func file(size: Int64, wait: @escaping @Sendable (String) -> Double = { _ in 0 },
-                     corrupt: @escaping @Sendable (String) -> Bool = { _ in false }, pause: Double = 0,
-                     headers: @escaping @Sendable (String) -> (status: String, fields: [String: String])? = { _ in nil })
-        async throws -> LocalHTTPServer {
+    static func file(
+        size: Int64, wait: @escaping @Sendable (String) -> Double = { _ in 0 },
+        corrupt: @escaping @Sendable (String) -> Bool = { _ in false }, pause: Double = 0,
+        headers: @escaping @Sendable (String) -> (status: String, fields: [String: String])? = { _ in nil }
+    )
+        async throws -> LocalHTTPServer
+    {
         try await LocalHTTPServer { head in
             let answer = headers(head)
             if answer?.status == "drop" { return Reply(pieces: []) }
@@ -140,25 +149,43 @@ struct PinnedRequestTests {
 
     /// Runs one request pinned to loopback; `accept` decides on the reply, and `cancelAfter` cancels
     /// once that many bytes have arrived.
-    private func run(_ request: URLRequest, accept: Bool = true, cancelAfter: Int? = nil, idleLimit: TimeInterval = 60,
-                     cookies: @escaping @Sendable (URL) -> [String: String] = { _ in [:] }) async -> Outcome {
+    private func run(
+        _ request: URLRequest, accept: Bool = true, cancelAfter: Int? = nil, idleLimit: TimeInterval = 60,
+        cookies: @escaping @Sendable (URL) -> [String: String] = { _ in [:] }
+    ) async -> Outcome {
         let interface = await loopback()
         let queue = DispatchQueue(label: "test.pinned")
         let state = Mutex(Outcome())
         return await withCheckedContinuation { continuation in
             queue.async {
                 var pinned: PinnedRequest?
-                pinned = PinnedRequest(request, over: interface, queue: queue, cookies: cookies, idleLimit: idleLimit, onResponse: { _, response in
-                    state.withLock { $0.response = response }
-                    return accept
-                }, onData: { _, data in
-                    let count = state.withLock { $0.body.append(data); return $0.body.count }
-                    if let cancelAfter, count >= cancelAfter { pinned?.cancel() }
-                }, onComplete: { _, error in
-                    let first = state.withLock { $0.error = error; $0.completions += 1; return $0.completions == 1 }
-                    // A second completion would show up in the count; give it a moment to arrive.
-                    if first { queue.asyncAfter(deadline: .now() + 0.2) { continuation.resume(returning: state.withLock { $0 }); pinned = nil } }
-                })
+                pinned = PinnedRequest(
+                    request, over: interface, queue: queue, cookies: cookies, idleLimit: idleLimit,
+                    onResponse: { _, response in
+                        state.withLock { $0.response = response }
+                        return accept
+                    },
+                    onData: { _, data in
+                        let count = state.withLock {
+                            $0.body.append(data)
+                            return $0.body.count
+                        }
+                        if let cancelAfter, count >= cancelAfter { pinned?.cancel() }
+                    },
+                    onComplete: { _, error in
+                        let first = state.withLock {
+                            $0.error = error
+                            $0.completions += 1
+                            return $0.completions == 1
+                        }
+                        // A second completion would show up in the count; give it a moment to arrive.
+                        if first {
+                            queue.asyncAfter(deadline: .now() + 0.2) {
+                                continuation.resume(returning: state.withLock { $0 })
+                                pinned = nil
+                            }
+                        }
+                    })
                 pinned?.start()
             }
         }
@@ -168,7 +195,8 @@ struct PinnedRequestTests {
 
     @Test func readsABodyOfKnownLength() async throws {
         let server = try await LocalHTTPServer { _ in
-            LocalHTTPServer.reply("206 Partial Content", ["Content-Length": "10", "Content-Range": "bytes 10-19/100"], Data("0123456789".utf8))
+            LocalHTTPServer.reply(
+                "206 Partial Content", ["Content-Length": "10", "Content-Range": "bytes 10-19/100"], Data("0123456789".utf8))
         }
         var request = URLRequest(url: server.base.appending(path: "file.bin"))
         request.setValue("bytes=10-19", forHTTPHeaderField: "Range")
@@ -190,8 +218,11 @@ struct PinnedRequestTests {
 
     @Test func readsChunkedBodiesSplitAnywhere() async throws {
         let server = try await LocalHTTPServer { _ in
-            LocalHTTPServer.Reply(pieces: ["HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n", "\r\n4\r\nWi", "ki\r", "\n5;x=y\r\npedia\r\n0\r\n",
-                                           "Trailer: z\r\n\r\n"].map { Data($0.utf8) }, pause: 0.02, close: false)
+            LocalHTTPServer.Reply(
+                pieces: [
+                    "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n", "\r\n4\r\nWi", "ki\r", "\n5;x=y\r\npedia\r\n0\r\n",
+                    "Trailer: z\r\n\r\n",
+                ].map { Data($0.utf8) }, pause: 0.02, close: false)
         }
         let outcome = await run(URLRequest(url: server.base))
         #expect(String(decoding: outcome.body, as: UTF8.self) == "Wikipedia")
@@ -200,8 +231,9 @@ struct PinnedRequestTests {
 
     @Test func headSplitAcrossReadsAndInterimRepliesAreSkipped() async throws {
         let server = try await LocalHTTPServer { _ in
-            LocalHTTPServer.Reply(pieces: ["HTTP/1.1 100 Continue\r\n\r\nHTTP/1.1 200 OK\r\nContent-", "Length: 3\r\n\r", "\nabc"].map { Data($0.utf8) },
-                                  pause: 0.02, close: false)
+            LocalHTTPServer.Reply(
+                pieces: ["HTTP/1.1 100 Continue\r\n\r\nHTTP/1.1 200 OK\r\nContent-", "Length: 3\r\n\r", "\nabc"].map { Data($0.utf8) },
+                pause: 0.02, close: false)
         }
         let outcome = await run(URLRequest(url: server.base))
         #expect(outcome.response?.statusCode == 200)
@@ -285,7 +317,8 @@ struct PinnedRequestTests {
             if head.hasPrefix("GET /moved ") {
                 // localhost is the same server, but another host as far as cookies go.
                 let port = head.split(separator: "\r\n").first { $0.hasPrefix("Host: ") }?.split(separator: ":").last ?? ""
-                return LocalHTTPServer.reply("307 Temporary Redirect", ["Location": "http://localhost:\(port)/file", "Content-Length": "0"])
+                return LocalHTTPServer.reply(
+                    "307 Temporary Redirect", ["Location": "http://localhost:\(port)/file", "Content-Length": "0"])
             }
             return LocalHTTPServer.reply("200 OK", ["Content-Length": "4"], Data("done".utf8))
         }

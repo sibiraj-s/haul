@@ -3,31 +3,43 @@ import SwiftUI
 /// Help → Keyboard Shortcuts. Keep in step with `HaulCommands` and the list's key handling.
 struct ShortcutsView: View {
     private static let sections: [(title: String, rows: [(keys: String, action: String)])] = [
-        ("General", [
-            ("⌘N", "Add Download"),
-            ("⌘F", "Search"),
-            ("⌘,", "Settings"),
-            ("⌘0", "Show Main Window"),
-        ]),
-        ("Selected Download", [
-            ("↑ ↓", "Select Previous or Next"),
-            ("Space", "Pause, Resume or Start"),
-            ("Return", "Rename"),
-            ("⌘O", "Open"),
-            ("⌘R", "Show in Finder"),
-            ("⇧⌘C", "Copy Link"),
-            ("⌘⌫", "Remove"),
-        ]),
-        ("All Downloads", [
-            ("⌥⌘P", "Pause All"),
-            ("⌥⌘R", "Resume All"),
-            ("⇧⌘⌫", "Clear Completed"),
-        ]),
-        ("View", [
-            ("⌘1 – ⌘5", "All, Active, Queued, Completed, Failed"),
-            ("⌃⌘S", "Show or Hide Sidebar"),
-            ("⌥⌘I", "Show or Hide Inspector"),
-        ]),
+        (
+            "General",
+            [
+                ("⌘N", "Add Download"),
+                ("⌘F", "Search"),
+                ("⌘,", "Settings"),
+                ("⌘0", "Show Main Window"),
+            ]
+        ),
+        (
+            "Selected Download",
+            [
+                ("↑ ↓", "Select Previous or Next"),
+                ("Space", "Pause, Resume or Start"),
+                ("Return", "Rename"),
+                ("⌘O", "Open"),
+                ("⌘R", "Show in Finder"),
+                ("⇧⌘C", "Copy Link"),
+                ("⌘⌫", "Remove"),
+            ]
+        ),
+        (
+            "All Downloads",
+            [
+                ("⌥⌘P", "Pause All"),
+                ("⌥⌘R", "Resume All"),
+                ("⇧⌘⌫", "Clear Completed"),
+            ]
+        ),
+        (
+            "View",
+            [
+                ("⌘1 – ⌘5", "All, Active, Queued, Completed, Failed"),
+                ("⌃⌘S", "Show or Hide Sidebar"),
+                ("⌥⌘I", "Show or Hide Inspector"),
+            ]
+        ),
     ]
 
     var body: some View {

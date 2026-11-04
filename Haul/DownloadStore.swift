@@ -144,8 +144,9 @@ final class DownloadStore {
     /// The networks one download can use together. Metered ones count only where downloads
     /// may use metered networks: "Pause on Personal Hotspot" is off, or Download Anyway was chosen.
     var usableNetworks: [NetworkLink] {
-        NetworkLink.usable(networks.links, vpn: networks.vpn, proxy: proxied,
-                           allowMetered: !settings.pauseOnExpensive || allowExpensiveNetwork)
+        NetworkLink.usable(
+            networks.links, vpn: networks.vpn, proxy: proxied,
+            allowMetered: !settings.pauseOnExpensive || allowExpensiveNetwork)
     }
 
     private func networkChanged(id: String, expensive: Bool, lowData: Bool) {
@@ -218,7 +219,9 @@ final class DownloadStore {
         if n > 0 { return "\(n) downloading · \(formatBytes(totalSpeed))/s" }
         let queued = items.filter { $0.status == .queued }.count
         if queued > 0 && waitingForNetwork { return "\(queued) queued · waiting for an unmetered network" }
-        if queued > 0 && settings.scheduleOnly && !inScheduleWindow { return "\(queued) queued · starts at \(AppSettings.hourLabel(settings.scheduleFrom))" }
+        if queued > 0 && settings.scheduleOnly && !inScheduleWindow {
+            return "\(queued) queued · starts at \(AppSettings.hourLabel(settings.scheduleFrom))"
+        }
         return "\(queued) queued · idle"
     }
 
@@ -238,10 +241,13 @@ final class DownloadStore {
     /// unpacks the file when it's done, if it turns out to be an archive Haul can extract, and
     /// `whenDone` then opens or shows the file (or what was extracted). `reveal` selects it in
     /// the list, clearing any search or filter; not for downloads added from another device.
-    func add(url: URL, probe: Probe.Info?, connections: Int, start: Start, folder: SavedFolder? = nil, replaceExisting: Bool = false,
-             extract: Bool = false, whenDone: WhenDone = .nothing, reveal: Bool = true) {
-        var d = Download(url: url, name: probe?.name ?? url.lastPathComponent, size: nil,
-                         status: start == .paused ? .paused : .queued, connections: connections)
+    func add(
+        url: URL, probe: Probe.Info?, connections: Int, start: Start, folder: SavedFolder? = nil, replaceExisting: Bool = false,
+        extract: Bool = false, whenDone: WhenDone = .nothing, reveal: Bool = true
+    ) {
+        var d = Download(
+            url: url, name: probe?.name ?? url.lastPathComponent, size: nil,
+            status: start == .paused ? .paused : .queued, connections: connections)
         if let probe { d.apply(probe) }
         d.queueOrder = start == .now ? queueStart : queueEnd
         if replaceExisting { d.replaceExisting = true }
@@ -272,7 +278,10 @@ final class DownloadStore {
         case .failed where d.issue == .signIn:
             signIn(id)
         case .paused, .queued, .failed:
-            if let i = index(id) { items[i].retries = 0; items[i].retryAt = nil }
+            if let i = index(id) {
+                items[i].retries = 0
+                items[i].retryAt = nil
+            }
             beginByHand(id)
         case .completed: break
         }
@@ -344,7 +353,7 @@ final class DownloadStore {
             _ = destinationFolder(for: items[i])  // makes sure a picked folder's sandbox access is active
             do {
                 try FileManager.default.trashItem(at: file, resultingItemURL: nil)
-            } catch where FileManager.default.fileExists(atPath: file.path) {
+            } catch  where FileManager.default.fileExists(atPath: file.path) {
                 // Keep the entry so the file can still be found from the list.
                 let alert = NSAlert()
                 alert.messageText = "Couldn't move “\(items[i].name)” to the Trash"
@@ -504,8 +513,9 @@ final class DownloadStore {
     /// Asks for the username and password the server wants, then tries again.
     func signIn(_ id: UUID) {
         guard let d = items.first(where: { $0.id == id }),
-              SignIn.prompt(for: d.url, realm: d.authRealm, digest: d.authDigest ?? false),
-              let i = index(id) else { return }
+            SignIn.prompt(for: d.url, realm: d.authRealm, digest: d.authDigest ?? false),
+            let i = index(id)
+        else { return }
         items[i].retries = 0
         items[i].retryAt = nil
         beginByHand(id)
@@ -516,16 +526,18 @@ final class DownloadStore {
         guard let d = items.first(where: { $0.id == id }) else { return }
         if d.status == .completed { _ = destinationFolder(for: d) }  // makes sure a picked folder's sandbox access is active
         let hasFile = d.status == .completed && d.fileURL.map { FileManager.default.fileExists(atPath: $0.path) } == true
-        let detail = hasFile
+        let detail =
+            hasFile
             ? "Removes it from the list. The file is in \(destinationLabel(for: d))."
             : d.status == .completed
                 ? "Removes it from the list."
                 : "What's been downloaded so far will be deleted."
         // Without the dialog (confirmation off) the file is always kept.
         let asked = settings.confirmRemove
-        let (confirmed, trash) = confirm("Remove “\(d.name)”?", detail, button: "Remove",
-                                         checkbox: hasFile ? "Also move the file to the Trash" : nil,
-                                         checked: settings.trashOnRemove)
+        let (confirmed, trash) = confirm(
+            "Remove “\(d.name)”?", detail, button: "Remove",
+            checkbox: hasFile ? "Also move the file to the Trash" : nil,
+            checked: settings.trashOnRemove)
         guard confirmed else { return }
         if hasFile && asked { settings.trashOnRemove = trash }
         remove(id, trashFile: trash)
@@ -534,7 +546,10 @@ final class DownloadStore {
     func requestClearCompleted() {
         let n = count(.completed)
         guard n > 0 else { return }
-        if confirm("Clear \(n) completed download\(n == 1 ? "" : "s")?", "They're removed from the list. The files stay where they are.", button: "Clear") {
+        if confirm(
+            "Clear \(n) completed download\(n == 1 ? "" : "s")?", "They're removed from the list. The files stay where they are.",
+            button: "Clear")
+        {
             clearCompleted()
         }
     }
@@ -546,7 +561,9 @@ final class DownloadStore {
     }
 
     /// `checkbox` adds an option that starts in the `checked` state; the result's `checked` is whether it ended up on.
-    private func confirm(_ title: String, _ detail: String, button: String, checkbox: String?, checked: Bool = false) -> (confirmed: Bool, checked: Bool) {
+    private func confirm(_ title: String, _ detail: String, button: String, checkbox: String?, checked: Bool = false) -> (
+        confirmed: Bool, checked: Bool
+    ) {
         guard settings.confirmRemove else { return (true, false) }
         let alert = NSAlert()
         alert.messageText = title
@@ -678,9 +695,11 @@ final class DownloadStore {
         // A proxy turned on since the last tick must not be gone around.
         if settings.useAllNetworks { refreshProxied() }
         let routes = routes(for: d)
-        let engine = SegmentedDownloader(url: d.url, partURL: partURL(id), segments: d.segments, connections: d.connectionLimit,
-                                         etag: d.etag, lastModified: d.lastModified, routes: routes,
-                                         browser: d.browser, limiter: limiter) { result in
+        let engine = SegmentedDownloader(
+            url: d.url, partURL: partURL(id), segments: d.segments, connections: d.connectionLimit,
+            etag: d.etag, lastModified: d.lastModified, routes: routes,
+            browser: d.browser, limiter: limiter
+        ) { result in
             Task { @MainActor in DownloadStore.shared.engineFinished(id, result) }
         }
         engines[id] = engine
@@ -696,16 +715,19 @@ final class DownloadStore {
     }
 
     private func routes(for d: Download) -> [Route] {
-        Self.routes(usableNetworks, primary: networks.primary, enabled: settings.useAllNetworks,
-                    connections: d.connectionLimit, resumable: d.resumable, signIn: d.authRealm != nil)
+        Self.routes(
+            usableNetworks, primary: networks.primary, enabled: settings.useAllNetworks,
+            connections: d.connectionLimit, resumable: d.resumable, signIn: d.authRealm != nil)
     }
 
     /// The networks a download's connections go over: with "Multi-network downloads" on, every usable
     /// network, the default one through URLSession and the others pinned; otherwise just the default.
     /// Only resumable downloads split across networks, and not ones that need a sign-in, which
     /// only URLSession can answer.
-    nonisolated static func routes(_ links: [NetworkLink], primary: String?, enabled: Bool,
-                                   connections: Int, resumable: Bool, signIn: Bool) -> [Route] {
+    nonisolated static func routes(
+        _ links: [NetworkLink], primary: String?, enabled: Bool,
+        connections: Int, resumable: Bool, signIn: Bool
+    ) -> [Route] {
         let links = links.filter { $0.interface != nil }
         guard enabled, links.count > 1, connections > 1, resumable, !signIn else { return [.standard] }
         return links.map { $0.name == primary ? Route(interface: nil, name: $0.name) : Route(interface: $0.interface, name: $0.name) }
@@ -719,8 +741,10 @@ final class DownloadStore {
             guard let old = engineRoutes[id], engines[id] != nil else { continue }
             let wanted = routes(for: items[i])
             let waiting = newRoutes[id].flatMap { $0.routes == wanted ? $0.since : nil }
-            switch Self.networkChange(from: old, to: wanted, waitingSince: waiting, now: now,
-                                      byUser: engineAllNetworks[id] != settings.useAllNetworks) {
+            switch Self.networkChange(
+                from: old, to: wanted, waitingSince: waiting, now: now,
+                byUser: engineAllNetworks[id] != settings.useAllNetworks)
+            {
             case .none:
                 newRoutes[id] = nil
                 // The setting may have changed without changing this download's networks.
@@ -745,8 +769,10 @@ final class DownloadStore {
     /// A network to stop using is dropped at once, so nothing more goes around a VPN that just came on,
     /// and so is the setting being changed; a network to start using must first stay for `networkSettle`,
     /// so one that keeps dropping out and coming back doesn't restart downloads over and over.
-    nonisolated static func networkChange(from old: [Route], to wanted: [Route], waitingSince: Date?, now: Date,
-                                          byUser: Bool) -> NetworkChange {
+    nonisolated static func networkChange(
+        from old: [Route], to wanted: [Route], waitingSince: Date?, now: Date,
+        byUser: Bool
+    ) -> NetworkChange {
         guard wanted != old else { return .none }
         if byUser || old.contains(where: { $0.interface != nil && !wanted.contains($0) }) { return .restart }
         guard let since = waitingSince else { return .waiting(since: now) }
@@ -944,7 +970,8 @@ final class DownloadStore {
 
     private func uniqueURL(in folder: URL, name: String) -> URL {
         var url = folder.appending(path: name)
-        let base = (name as NSString).deletingPathExtension, ext = (name as NSString).pathExtension
+        let base = (name as NSString).deletingPathExtension
+        let ext = (name as NSString).pathExtension
         var n = 2
         while FileManager.default.fileExists(atPath: url.path) {
             url = folder.appending(path: ext.isEmpty ? "\(base) \(n)" : "\(base) \(n).\(ext)")
@@ -955,12 +982,14 @@ final class DownloadStore {
 
     /// Sends `old` to the Trash (rather than deleting it, in case replacing was a mistake) and moves
     /// `new` into its place. Returns where the new file ended up; if any step fails, both files are kept.
-    static func swapIn(_ new: URL, for old: URL,
-                       trash: (URL) throws -> URL? = { url in
-                           var trashed: NSURL?
-                           try FileManager.default.trashItem(at: url, resultingItemURL: &trashed)
-                           return trashed as URL?
-                       }) -> URL {
+    static func swapIn(
+        _ new: URL, for old: URL,
+        trash: (URL) throws -> URL? = { url in
+            var trashed: NSURL?
+            try FileManager.default.trashItem(at: url, resultingItemURL: &trashed)
+            return trashed as URL?
+        }
+    ) -> URL {
         let trashed: URL?
         do { trashed = try trash(old) } catch { return new }
         if (try? FileManager.default.moveItem(at: new, to: old)) != nil { return old }
@@ -1003,8 +1032,9 @@ final class DownloadStore {
         cleanUpList(now)
         // The badge shows overall progress; when no size is known yet, how many are downloading.
         let sized = downloading.contains { ($0.size ?? 0) > 0 }
-        dock.update(progress: settings.dockProgress && !downloading.isEmpty ? overallProgress : nil,
-                    badge: sized ? "\(Int(overallProgress * 100))%" : "\(downloading.count)")
+        dock.update(
+            progress: settings.dockProgress && !downloading.isEmpty ? overallProgress : nil,
+            badge: sized ? "\(Int(overallProgress * 100))%" : "\(downloading.count)")
         if dirty { save() }
     }
 
@@ -1019,8 +1049,9 @@ final class DownloadStore {
         let seconds = now.timeIntervalSince(oldest.at)
         // The default route's bytes are filed under the network it goes over.
         let primary = networks.primary ?? ""
-        return Dictionary(bytes.map { ($0.key.isEmpty ? primary : $0.key, Double($0.value - (oldest.bytes[$0.key] ?? 0)) / seconds) },
-                          uniquingKeysWith: +)
+        return Dictionary(
+            bytes.map { ($0.key.isEmpty ? primary : $0.key, Double($0.value - (oldest.bytes[$0.key] ?? 0)) / seconds) },
+            uniquingKeysWith: +)
     }
 
     private func schedule() {
@@ -1085,7 +1116,8 @@ final class DownloadStore {
     /// Haul's own folder; a destination on another disk also needs room for the whole file.
     private func diskShortfall(for d: Download) -> String? {
         guard let size = d.size else { return nil }
-        let partials = Self.partialsFolder, destination = destinationFolder(for: d)
+        let partials = Self.partialsFolder
+        let destination = destinationFolder(for: d)
         var needs: [(URL, Int64)] = [(partials, size - d.received)]
         if let a = Self.volume(of: partials), let b = Self.volume(of: destination), a != b { needs.append((destination, size)) }
         for (folder, bytes) in needs {
@@ -1200,8 +1232,8 @@ final class DownloadStore {
     }
 }
 
-private extension Download {
-    mutating func apply(_ info: Probe.Info) {
+extension Download {
+    fileprivate mutating func apply(_ info: Probe.Info) {
         if renamed != true { name = info.name }
         etag = info.etag
         lastModified = info.lastModified
@@ -1258,7 +1290,9 @@ nonisolated final class Notifier: NSObject, UNUserNotificationCenterDelegate {
         UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: d.id.uuidString, content: content, trigger: nil))
     }
 
-    func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
+    func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async
+        -> UNNotificationPresentationOptions
+    {
         [.banner, .sound]
     }
 
@@ -1280,7 +1314,10 @@ final class DockProgress {
     func update(progress: Double?, badge: String) {
         let tile = NSApp.dockTile
         if let progress {
-            if !shown { tile.contentView = host; shown = true }
+            if !shown {
+                tile.contentView = host
+                shown = true
+            }
             host.rootView = DockTileView(progress: progress)
             if tile.badgeLabel != badge { tile.badgeLabel = badge }
             tile.display()

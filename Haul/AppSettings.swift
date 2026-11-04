@@ -56,14 +56,39 @@ final class AppSettings {
 
     @ObservationIgnored private let defaults = UserDefaults.standard
 
-    var appearance: Appearance { didSet { save(appearance.rawValue, "appearance"); applyAppearance() } }
+    var appearance: Appearance {
+        didSet {
+            save(appearance.rawValue, "appearance")
+            applyAppearance()
+        }
+    }
     var accent: AccentChoice { didSet { save(accent.rawValue, "accent") } }
     var menuBar: Bool { didSet { save(menuBar, "menuBar") } }
-    var dockProgress: Bool { didSet { save(dockProgress, "dockProgress"); if dockProgress { Notifier.requestAuthorization() } } }
+    var dockProgress: Bool {
+        didSet {
+            save(dockProgress, "dockProgress")
+            if dockProgress { Notifier.requestAuthorization() }
+        }
+    }
     /// Notify when a download finishes.
-    var notify: Bool { didSet { save(notify, "notify"); if notify { Notifier.requestAuthorization() } } }
-    var notifyAdded: Bool { didSet { save(notifyAdded, "notifyAdded"); if notifyAdded { Notifier.requestAuthorization() } } }
-    var notifyFailed: Bool { didSet { save(notifyFailed, "notifyFailed"); if notifyFailed { Notifier.requestAuthorization() } } }
+    var notify: Bool {
+        didSet {
+            save(notify, "notify")
+            if notify { Notifier.requestAuthorization() }
+        }
+    }
+    var notifyAdded: Bool {
+        didSet {
+            save(notifyAdded, "notifyAdded")
+            if notifyAdded { Notifier.requestAuthorization() }
+        }
+    }
+    var notifyFailed: Bool {
+        didSet {
+            save(notifyFailed, "notifyFailed")
+            if notifyFailed { Notifier.requestAuthorization() }
+        }
+    }
     /// Skip notifications while Haul is the frontmost app.
     var notifyOnlyInBackground: Bool { didSet { save(notifyOnlyInBackground, "notifyOnlyInBackground") } }
     var autoSort: Bool { didSet { save(autoSort, "autoSort") } }
@@ -93,7 +118,12 @@ final class AppSettings {
     /// Last choice for "Also move the file to the Trash" in the remove dialog.
     var trashOnRemove: Bool { didSet { save(trashOnRemove, "trashOnRemove") } }
     var autoRetry: Bool { didSet { save(autoRetry, "autoRetry") } }
-    var proxyMode: ProxyMode { didSet { save(proxyMode.rawValue, "proxyMode"); publishProxy() } }
+    var proxyMode: ProxyMode {
+        didSet {
+            save(proxyMode.rawValue, "proxyMode")
+            publishProxy()
+        }
+    }
     var proxyKind: ProxyKind {
         didSet {
             save(proxyKind.rawValue, "proxyKind")
@@ -102,11 +132,31 @@ final class AppSettings {
             publishProxy()
         }
     }
-    var proxyHost: String { didSet { save(proxyHost, "proxyHost"); publishProxy() } }
-    var proxyPort: Int { didSet { save(proxyPort, "proxyPort"); publishProxy() } }
-    var proxyUser: String { didSet { save(proxyUser, "proxyUser"); publishProxy() } }
+    var proxyHost: String {
+        didSet {
+            save(proxyHost, "proxyHost")
+            publishProxy()
+        }
+    }
+    var proxyPort: Int {
+        didSet {
+            save(proxyPort, "proxyPort")
+            publishProxy()
+        }
+    }
+    var proxyUser: String {
+        didSet {
+            save(proxyUser, "proxyUser")
+            publishProxy()
+        }
+    }
     /// Hosts that skip the custom proxy, as typed.
-    var proxyBypass: String { didSet { save(proxyBypass, "proxyBypass"); publishProxy() } }
+    var proxyBypass: String {
+        didSet {
+            save(proxyBypass, "proxyBypass")
+            publishProxy()
+        }
+    }
     /// Kept in the Keychain; change it with `setProxyPassword`.
     private(set) var proxyPassword: String
     var skipWebPages: Bool { didSet { save(skipWebPages, "skipWebPages") } }
@@ -126,8 +176,18 @@ final class AppSettings {
             RemoteServer.shared.update()
         }
     }
-    var remoteScope: RemoteScope { didSet { save(remoteScope.rawValue, "remoteScope"); RemoteServer.shared.update() } }
-    var remotePort: Int { didSet { save(remotePort, "remotePort"); RemoteServer.shared.update() } }
+    var remoteScope: RemoteScope {
+        didSet {
+            save(remoteScope.rawValue, "remoteScope")
+            RemoteServer.shared.update()
+        }
+    }
+    var remotePort: Int {
+        didSet {
+            save(remotePort, "remotePort")
+            RemoteServer.shared.update()
+        }
+    }
     /// Kept in the Keychain, and only read from it while remote downloads are on, so the
     /// Keychain isn't touched for a feature that's off. Change it with `setRemotePassword`.
     private(set) var remotePassword = ""
@@ -207,8 +267,9 @@ final class AppSettings {
 
     /// The proxy settings as the download sessions will use them.
     var proxy: ProxySettings {
-        ProxySettings(mode: proxyMode, kind: proxyKind, host: proxyHost, port: proxyPort, username: proxyUser,
-                      password: proxyPassword, bypass: ProxySettings.hosts(proxyBypass))
+        ProxySettings(
+            mode: proxyMode, kind: proxyKind, host: proxyHost, port: proxyPort, username: proxyUser,
+            password: proxyPassword, bypass: ProxySettings.hosts(proxyBypass))
     }
 
     private func publishProxy() { ProxySettings.current = proxy }
@@ -254,11 +315,12 @@ final class AppSettings {
     }
 
     func applyAppearance() {
-        NSApp?.appearance = switch appearance {
-        case .light: NSAppearance(named: .aqua)
-        case .dark: NSAppearance(named: .darkAqua)
-        case .auto: nil
-        }
+        NSApp?.appearance =
+            switch appearance {
+            case .light: NSAppearance(named: .aqua)
+            case .dark: NSAppearance(named: .darkAqua)
+            case .auto: nil
+            }
     }
 
     var downloadsFolder: URL {
@@ -288,7 +350,9 @@ struct SavedFolder: Equatable {
 
     /// Bookmarks a folder the user just chose in an open panel.
     init?(choosing url: URL) {
-        guard let data = try? url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil) else { return nil }
+        guard let data = try? url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil) else {
+            return nil
+        }
         self.url = url
         bookmark = data
         Self.startAccess(url)
@@ -297,10 +361,13 @@ struct SavedFolder: Equatable {
     /// Restores a saved bookmark; nil if the folder no longer exists.
     init?(bookmark data: Data) {
         var stale = false
-        guard let url = try? URL(resolvingBookmarkData: data, options: .withSecurityScope, relativeTo: nil, bookmarkDataIsStale: &stale) else { return nil }
+        guard let url = try? URL(resolvingBookmarkData: data, options: .withSecurityScope, relativeTo: nil, bookmarkDataIsStale: &stale)
+        else { return nil }
         Self.startAccess(url)
         // A stale bookmark still resolves (e.g. the folder moved); refresh it while we have access.
-        bookmark = stale ? (try? url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil)) ?? data : data
+        bookmark =
+            stale
+            ? (try? url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil)) ?? data : data
         self.url = url
     }
 

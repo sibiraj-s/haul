@@ -18,7 +18,8 @@ struct MenuBarLabel: View {
 
     private func ringImage(progress: Double) -> NSImage {
         let image = NSImage(size: NSSize(width: 17, height: 17), flipped: false) { rect in
-            let center = NSPoint(x: rect.midX, y: rect.midY), radius: CGFloat = 6.8
+            let center = NSPoint(x: rect.midX, y: rect.midY)
+            let radius: CGFloat = 6.8
             let track = NSBezierPath()
             track.appendArc(withCenter: center, radius: radius, startAngle: 0, endAngle: 360)
             track.lineWidth = 1.5

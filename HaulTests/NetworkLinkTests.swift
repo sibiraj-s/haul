@@ -1,6 +1,7 @@
 import Foundation
 import Network
 import Testing
+
 @testable import Haul
 
 struct NetworkLinkTests {
@@ -52,13 +53,13 @@ struct NetworkLinkTests {
 struct NetworkLeaseTests {
     @Test func androidLeaseIsMetered() {
         let output = """
-        op = BOOTREPLY
-        router (ip_mult): {10.205.163.8}
-        vendor_specific (opaque):\u{20}
-        0000  41 4e 44 52 4f 49 44 5f  4d 45 54 45 52 45 44     ANDROID_METERED\u{20}
+            op = BOOTREPLY
+            router (ip_mult): {10.205.163.8}
+            vendor_specific (opaque):\u{20}
+            0000  41 4e 44 52 4f 49 44 5f  4d 45 54 45 52 45 44     ANDROID_METERED\u{20}
 
-        end (none):\u{20}
-        """
+            end (none):\u{20}
+            """
         let lease = NetworkLease.parse(output)
         #expect(lease.router == "10.205.163.8")
         #expect(lease.metered)
@@ -66,19 +67,19 @@ struct NetworkLeaseTests {
 
     @Test func markerWrappedAcrossLinesIsFound() {
         let output = """
-        vendor_specific (opaque):
-        0000  00 41 4e 44 52 4f 49 44  5f 4d 45 54 45 52 45 44   .ANDROID_METERE
-        0010  00                                                 .
-        """
+            vendor_specific (opaque):
+            0000  00 41 4e 44 52 4f 49 44  5f 4d 45 54 45 52 45 44   .ANDROID_METERE
+            0010  00                                                 .
+            """
         #expect(NetworkLease.parse(output).metered)
     }
 
     @Test func routerHardwareAddressFromARP() {
         let output = """
-        ? (192.168.1.1) at 68:7f:f0:1d:34:0 on en0 ifscope [ethernet]
-        ? (192.168.1.10) at (incomplete) on en0 ifscope [ethernet]
-        ? (192.168.1.100) at 3c:22:fb:1:2:3 on en0 ifscope [ethernet]
-        """
+            ? (192.168.1.1) at 68:7f:f0:1d:34:0 on en0 ifscope [ethernet]
+            ? (192.168.1.10) at (incomplete) on en0 ifscope [ethernet]
+            ? (192.168.1.100) at 3c:22:fb:1:2:3 on en0 ifscope [ethernet]
+            """
         #expect(NetworkLease.hardwareAddress(of: "192.168.1.1", in: output) == "68:7f:f0:1d:34:0")
         #expect(NetworkLease.hardwareAddress(of: "192.168.1.10", in: output) == nil)
         #expect(NetworkLease.hardwareAddress(of: "192.168.1.2", in: output) == nil)

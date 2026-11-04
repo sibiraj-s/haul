@@ -2,6 +2,7 @@ import Foundation
 import Network
 import Synchronization
 import Testing
+
 @testable import Haul
 
 /// One download spread over several routes, against a real server on loopback: the default route
@@ -17,20 +18,25 @@ struct MultiNetworkTests {
         var file: Data
     }
 
-    private func download(_ server: LocalHTTPServer, size: Int64, routes: [Route], connections: Int = 8,
-                          etag: String? = nil, lastModified: String? = nil) async -> Outcome {
+    private func download(
+        _ server: LocalHTTPServer, size: Int64, routes: [Route], connections: Int = 8,
+        etag: String? = nil, lastModified: String? = nil
+    ) async -> Outcome {
         let part = FileManager.default.temporaryDirectory.appending(path: "haul-test-\(UUID().uuidString).part")
         defer { try? FileManager.default.removeItem(at: part) }
         var engine: SegmentedDownloader?
         let result = await withCheckedContinuation { continuation in
-            engine = SegmentedDownloader(url: server.base.appending(path: "file.bin"), partURL: part,
-                                         segments: [Segment(start: 0, end: size - 1)], connections: connections,
-                                         etag: etag, lastModified: lastModified, routes: routes, browser: nil,
-                                         limiter: RateLimiter(), configuration: .ephemeral) { continuation.resume(returning: $0) }
+            engine = SegmentedDownloader(
+                url: server.base.appending(path: "file.bin"), partURL: part,
+                segments: [Segment(start: 0, end: size - 1)], connections: connections,
+                etag: etag, lastModified: lastModified, routes: routes, browser: nil,
+                limiter: RateLimiter(), configuration: .ephemeral
+            ) { continuation.resume(returning: $0) }
             engine!.start()
         }
         let state = engine!.connectionState()
-        return Outcome(result: result, byRoute: state.byRoute, serverLimit: state.serverLimit, file: (try? Data(contentsOf: part)) ?? Data())
+        return Outcome(
+            result: result, byRoute: state.byRoute, serverLimit: state.serverLimit, file: (try? Data(contentsOf: part)) ?? Data())
     }
 
     private func pinned() async -> Route {
@@ -75,11 +81,17 @@ struct MultiNetworkTests {
         let size = 40 * Self.mb
         // A server allowing a few connections per account refuses the check while the others hold them.
         let refusedOnce = Mutex(false)
-        let server = try await LocalHTTPServer.file(size: size, pause: 0.02, headers: { head in
-            guard Self.isPinned(head), head.contains("Range: bytes=0-65535"),
-                  !refusedOnce.withLock({ defer { $0 = true }; return $0 }) else { return nil }
-            return ("429 Too Many Requests", ["Retry-After": "1"])
-        })
+        let server = try await LocalHTTPServer.file(
+            size: size, pause: 0.02,
+            headers: { head in
+                guard Self.isPinned(head), head.contains("Range: bytes=0-65535"),
+                    !refusedOnce.withLock({
+                        defer { $0 = true }
+                        return $0
+                    })
+                else { return nil }
+                return ("429 Too Many Requests", ["Retry-After": "1"])
+            })
         let outcome = await download(server, size: size, routes: [Self.defaultRoute, await pinned()])
         try outcome.result.get()
         #expect(outcome.file == RangeServer.content(0...(size - 1)))
@@ -93,9 +105,11 @@ struct MultiNetworkTests {
     @Test func aServerAlwaysBusyOverANetworkIsDropped() async throws {
         let size = 8 * Self.mb
         // Slow enough to outlast every check the network gets.
-        let server = try await LocalHTTPServer.file(size: size, pause: 0.4, headers: { head in
-            Self.isPinned(head) ? ("429 Too Many Requests", ["Retry-After": "1"]) : nil
-        })
+        let server = try await LocalHTTPServer.file(
+            size: size, pause: 0.4,
+            headers: { head in
+                Self.isPinned(head) ? ("429 Too Many Requests", ["Retry-After": "1"]) : nil
+            })
         let outcome = await download(server, size: size, routes: [Self.defaultRoute, await pinned()])
         try outcome.result.get()
         #expect(outcome.file == RangeServer.content(0...(size - 1)))
@@ -109,11 +123,17 @@ struct MultiNetworkTests {
         // As a server limiting each address: the other network's first part is refused while the
         // default route's connection is open.
         let refused = Mutex(false)
-        let server = try await LocalHTTPServer.file(size: size, pause: 0.01, headers: { head in
-            guard Self.isPinned(head), !head.contains("Range: bytes=0-65535"),
-                  !refused.withLock({ defer { $0 = true }; return $0 }) else { return nil }
-            return ("429 Too Many Requests", ["Retry-After": "1"])
-        })
+        let server = try await LocalHTTPServer.file(
+            size: size, pause: 0.01,
+            headers: { head in
+                guard Self.isPinned(head), !head.contains("Range: bytes=0-65535"),
+                    !refused.withLock({
+                        defer { $0 = true }
+                        return $0
+                    })
+                else { return nil }
+                return ("429 Too Many Requests", ["Retry-After": "1"])
+            })
         let outcome = await download(server, size: size, routes: [Self.defaultRoute, await pinned()], connections: 2)
         try outcome.result.get()
         #expect(outcome.file == RangeServer.content(0...(size - 1)))
@@ -147,12 +167,19 @@ struct MultiNetworkTests {
 
     @Test func anotherVersionOnANetworkIsDropped() async throws {
         let size = 20 * Self.mb
-        let server = try await LocalHTTPServer.file(size: size, headers: { head in
-            ("206", Self.isPinned(head) ? ["ETag": "\"v2\"", "Last-Modified": "Tue, 02 Jun 2026 10:00:00 GMT"]
-                                        : ["ETag": "\"v1\"", "Last-Modified": "Mon, 01 Jun 2026 10:00:00 GMT"])
-        })
-        let outcome = await download(server, size: size, routes: [Self.defaultRoute, await pinned()],
-                                     etag: "\"v1\"", lastModified: "Mon, 01 Jun 2026 10:00:00 GMT")
+        let server = try await LocalHTTPServer.file(
+            size: size,
+            headers: { head in
+                (
+                    "206",
+                    Self.isPinned(head)
+                        ? ["ETag": "\"v2\"", "Last-Modified": "Tue, 02 Jun 2026 10:00:00 GMT"]
+                        : ["ETag": "\"v1\"", "Last-Modified": "Mon, 01 Jun 2026 10:00:00 GMT"]
+                )
+            })
+        let outcome = await download(
+            server, size: size, routes: [Self.defaultRoute, await pinned()],
+            etag: "\"v1\"", lastModified: "Mon, 01 Jun 2026 10:00:00 GMT")
         try outcome.result.get()
         #expect(outcome.byRoute["lo0"] == nil)
     }
@@ -160,11 +187,14 @@ struct MultiNetworkTests {
     @Test func theSameFileTaggedDifferentlyIsUsed() async throws {
         let size = 40 * Self.mb
         // Mirrors that build their ETags from the file's inode tag the same file differently.
-        let server = try await LocalHTTPServer.file(size: size, headers: { head in
-            ("206", ["ETag": Self.isPinned(head) ? "\"inode-2\"" : "\"inode-1\"", "Last-Modified": "Mon, 01 Jun 2026 10:00:00 GMT"])
-        })
-        let outcome = await download(server, size: size, routes: [Self.defaultRoute, await pinned()],
-                                     etag: "\"inode-1\"", lastModified: "Mon, 01 Jun 2026 10:00:00 GMT")
+        let server = try await LocalHTTPServer.file(
+            size: size,
+            headers: { head in
+                ("206", ["ETag": Self.isPinned(head) ? "\"inode-2\"" : "\"inode-1\"", "Last-Modified": "Mon, 01 Jun 2026 10:00:00 GMT"])
+            })
+        let outcome = await download(
+            server, size: size, routes: [Self.defaultRoute, await pinned()],
+            etag: "\"inode-1\"", lastModified: "Mon, 01 Jun 2026 10:00:00 GMT")
         try outcome.result.get()
         #expect(outcome.file == RangeServer.content(0...(size - 1)))
         #expect((outcome.byRoute["lo0"] ?? 0) > 0)
@@ -172,9 +202,11 @@ struct MultiNetworkTests {
 
     @Test func aDifferentSizeOnANetworkIsDropped() async throws {
         let size = 20 * Self.mb
-        let server = try await LocalHTTPServer.file(size: size, headers: { head in
-            Self.isPinned(head) ? ("206", ["Content-Range": "bytes 0-0/\(size + 1)"]) : nil
-        })
+        let server = try await LocalHTTPServer.file(
+            size: size,
+            headers: { head in
+                Self.isPinned(head) ? ("206", ["Content-Range": "bytes 0-0/\(size + 1)"]) : nil
+            })
         let outcome = await download(server, size: size, routes: [Self.defaultRoute, await pinned()])
         try outcome.result.get()
         #expect(outcome.file == RangeServer.content(0...(size - 1)))
@@ -186,15 +218,21 @@ struct MultiNetworkTests {
         // The network passes its check, then one of its connections is refused, dropping it while the
         // others still wait for their replies, which then come with another version of the file.
         let pinnedSeen = Mutex(0)
-        let server = try await LocalHTTPServer.file(size: size, wait: { head in
-            guard Self.isPinned(head) else { return 0 }
-            return head.contains("Range: bytes=0-65535") ? 0 : 0.3
-        }, headers: { head in
-            guard Self.isPinned(head) else { return ("206", ["ETag": "\"v1\""]) }
-            if head.contains("Range: bytes=0-65535") { return ("206", ["ETag": "\"v1\""]) }
-            let n = pinnedSeen.withLock { $0 += 1; return $0 }
-            return n == 1 ? ("403 Forbidden", [:]) : ("206", ["ETag": "\"v2\""])
-        })
+        let server = try await LocalHTTPServer.file(
+            size: size,
+            wait: { head in
+                guard Self.isPinned(head) else { return 0 }
+                return head.contains("Range: bytes=0-65535") ? 0 : 0.3
+            },
+            headers: { head in
+                guard Self.isPinned(head) else { return ("206", ["ETag": "\"v1\""]) }
+                if head.contains("Range: bytes=0-65535") { return ("206", ["ETag": "\"v1\""]) }
+                let n = pinnedSeen.withLock {
+                    $0 += 1
+                    return $0
+                }
+                return n == 1 ? ("403 Forbidden", [:]) : ("206", ["ETag": "\"v2\""])
+            })
         let outcome = await download(server, size: size, routes: [Self.defaultRoute, await pinned()], etag: "\"v1\"")
         try outcome.result.get()
         #expect(pinnedSeen.withLock { $0 } > 1)
@@ -217,10 +255,17 @@ struct MultiNetworkTests {
         let size = 40 * Self.mb
         // One connection closes before replying, as on a passing hiccup; the rest are served.
         let dropped = Mutex(false)
-        let server = try await LocalHTTPServer.file(size: size, headers: { head in
-            guard Self.isPinned(head), !dropped.withLock({ defer { $0 = true }; return $0 }) else { return nil }
-            return ("drop", [:])
-        })
+        let server = try await LocalHTTPServer.file(
+            size: size,
+            headers: { head in
+                guard Self.isPinned(head),
+                    !dropped.withLock({
+                        defer { $0 = true }
+                        return $0
+                    })
+                else { return nil }
+                return ("drop", [:])
+            })
         // The only network, so dropping it would fail the download.
         let outcome = await download(server, size: size, routes: [await pinned()], connections: 4)
         try outcome.result.get()
@@ -263,12 +308,16 @@ struct MultiNetworkTests {
 struct RouteChoiceTests {
     private func links() async -> [NetworkLink] {
         let lo = await loopback()
-        return [NetworkLink(name: "en0", type: .wifi, metered: false, router: "192.168.1.1", interface: lo),
-                NetworkLink(name: "en7", type: .wiredEthernet, metered: false, router: "172.16.0.1", interface: lo)]
+        return [
+            NetworkLink(name: "en0", type: .wifi, metered: false, router: "192.168.1.1", interface: lo),
+            NetworkLink(name: "en7", type: .wiredEthernet, metered: false, router: "172.16.0.1", interface: lo),
+        ]
     }
 
-    private func routes(_ links: [NetworkLink], primary: String? = "en0", enabled: Bool = true, connections: Int = 8,
-                        resumable: Bool = true, signIn: Bool = false) -> [Route] {
+    private func routes(
+        _ links: [NetworkLink], primary: String? = "en0", enabled: Bool = true, connections: Int = 8,
+        resumable: Bool = true, signIn: Bool = false
+    ) -> [Route] {
         DownloadStore.routes(links, primary: primary, enabled: enabled, connections: connections, resumable: resumable, signIn: signIn)
     }
 

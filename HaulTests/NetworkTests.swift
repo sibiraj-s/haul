@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+
 @testable import Haul
 
 struct ResponseErrorTests {
@@ -8,8 +9,12 @@ struct ResponseErrorTests {
     }
 
     @Test func basicChallengeAsksForSignIn() {
-        guard case .signInRequired(let realm, let digest) = DownloadError.response(response(401, ["WWW-Authenticate": #"Basic realm="Members""#])) else {
-            Issue.record("expected signInRequired"); return
+        guard
+            case .signInRequired(let realm, let digest) = DownloadError.response(
+                response(401, ["WWW-Authenticate": #"Basic realm="Members""#]))
+        else {
+            Issue.record("expected signInRequired")
+            return
         }
         #expect(realm == "Members")
         #expect(!digest)
@@ -17,27 +22,37 @@ struct ResponseErrorTests {
 
     @Test func digestChallengeAsksForSignIn() {
         let error = DownloadError.response(response(401, ["WWW-Authenticate": #"Digest realm="Files", qop="auth", nonce="abc""#]))
-        guard case .signInRequired(let realm, let digest) = error else { Issue.record("expected signInRequired"); return }
+        guard case .signInRequired(let realm, let digest) = error else {
+            Issue.record("expected signInRequired")
+            return
+        }
         #expect(realm == "Files")
         #expect(digest)
     }
 
     @Test func digestRealmMentioningBasicStaysDigest() {
         let error = DownloadError.response(response(401, ["WWW-Authenticate": #"Digest realm="basic-users", qop="auth", nonce="abc""#]))
-        guard case .signInRequired(let realm, let digest) = error else { Issue.record("expected signInRequired"); return }
+        guard case .signInRequired(let realm, let digest) = error else {
+            Issue.record("expected signInRequired")
+            return
+        }
         #expect(realm == "basic-users")
         #expect(digest)
     }
 
     @Test func realmTextIsNotTakenForAScheme() {
         let error = DownloadError.response(response(401, ["WWW-Authenticate": #"Bearer realm="api, digest stuff""#]))
-        guard case .linkExpired(401) = error else { Issue.record("expected linkExpired"); return }
+        guard case .linkExpired(401) = error else {
+            Issue.record("expected linkExpired")
+            return
+        }
     }
 
     @Test func basicPreferredWithItsOwnRealm() {
         let header = #"Digest realm="D", nonce="x", Basic realm="B""#
         guard case .signInRequired(let realm, let digest) = DownloadError.response(response(401, ["WWW-Authenticate": header])) else {
-            Issue.record("expected signInRequired"); return
+            Issue.record("expected signInRequired")
+            return
         }
         #expect(realm == "B")
         #expect(!digest)
@@ -50,16 +65,25 @@ struct ResponseErrorTests {
     }
 
     @Test func unauthorizedWithoutChallengeIsAnExpiredLink() {
-        guard case .linkExpired(401) = DownloadError.response(response(401)) else { Issue.record("expected linkExpired"); return }
+        guard case .linkExpired(401) = DownloadError.response(response(401)) else {
+            Issue.record("expected linkExpired")
+            return
+        }
     }
 
     @Test(arguments: [403, 404, 410])
     func goneLinksAreExpired(_ status: Int) {
-        guard case .linkExpired(status) = DownloadError.response(response(status)) else { Issue.record("expected linkExpired"); return }
+        guard case .linkExpired(status) = DownloadError.response(response(status)) else {
+            Issue.record("expected linkExpired")
+            return
+        }
     }
 
     @Test func serverErrorsAreHTTPErrors() {
-        guard case .http(500) = DownloadError.response(response(500)) else { Issue.record("expected http(500)"); return }
+        guard case .http(500) = DownloadError.response(response(500)) else {
+            Issue.record("expected http(500)")
+            return
+        }
     }
 }
 

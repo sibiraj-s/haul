@@ -12,9 +12,9 @@ final class Updater {
     /// and ad hoc builds) link to the releases page instead. Development builds aren't
     /// versioned, so every release would look newer.
     #if DEBUG
-    let isEnabled = false
+        let isEnabled = false
     #else
-    let isEnabled = !(Bundle.main.object(forInfoDictionaryKey: "SUPublicEDKey") as? String ?? "").isEmpty
+        let isEnabled = !(Bundle.main.object(forInfoDictionaryKey: "SUPublicEDKey") as? String ?? "").isEmpty
     #endif
 
     /// False while a check or an update is in progress.
@@ -32,7 +32,8 @@ final class Updater {
         }
     }
 
-    @ObservationIgnored private let controller = SPUStandardUpdaterController(startingUpdater: false, updaterDelegate: nil, userDriverDelegate: nil)
+    @ObservationIgnored private let controller = SPUStandardUpdaterController(
+        startingUpdater: false, updaterDelegate: nil, userDriverDelegate: nil)
     @ObservationIgnored private var observation: NSKeyValueObservation?
 
     var currentVersion: String {

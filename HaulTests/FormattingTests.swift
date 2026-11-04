@@ -1,7 +1,13 @@
 import Testing
+
 @testable import Haul
 
-private let KB = 1024.0, MB = KB * 1024, GB = MB * 1024
+// swift-format-ignore: AlwaysUseLowerCamelCase
+private let KB = 1024.0
+// swift-format-ignore: AlwaysUseLowerCamelCase
+private let MB = KB * 1024
+// swift-format-ignore: AlwaysUseLowerCamelCase
+private let GB = MB * 1024
 
 struct FormattingTests {
     nonisolated static let byteCases: [(Double, String)] = [
