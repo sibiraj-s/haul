@@ -634,6 +634,7 @@ final class DownloadStore {
     }
 
     func showMainWindow() {
+        DockIcon.show()
         NSApp.activate()
         if let window = NSApp.windows.first(where: { $0.identifier?.rawValue.hasPrefix("main") == true }) {
             window.makeKeyAndOrderFront(nil)

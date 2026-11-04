@@ -20,6 +20,7 @@ final class SettingsWindow {
     func show() {
         let window = window ?? makeWindow()
         self.window = window
+        DockIcon.show()
         NSApp.activate()
         window.makeKeyAndOrderFront(nil)
     }

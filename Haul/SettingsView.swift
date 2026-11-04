@@ -157,6 +157,11 @@ private struct GeneralSettings: View {
             SettingRow(title: "Show in menu bar", caption: "Progress ring and live speed next to the clock.") {
                 DesignSwitch(isOn: $settings.menuBar)
             }
+            if settings.menuBar {
+                SettingRow(title: "Hide Dock icon when window is closed", caption: "Haul keeps running in the menu bar.") {
+                    DesignSwitch(isOn: $settings.hideDockWhenClosed)
+                }
+            }
             SettingRow(title: "Show progress on Dock icon") { DesignSwitch(isOn: $settings.dockProgress) }
             SettingRow(title: "Open at login") {
                 DesignSwitch(isOn: Binding(get: { settings.launchAtLogin }, set: { settings.setLaunchAtLogin($0) }))

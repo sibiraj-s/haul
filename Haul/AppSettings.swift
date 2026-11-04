@@ -63,7 +63,19 @@ final class AppSettings {
         }
     }
     var accent: AccentChoice { didSet { save(accent.rawValue, "accent") } }
-    var menuBar: Bool { didSet { save(menuBar, "menuBar") } }
+    var menuBar: Bool {
+        didSet {
+            save(menuBar, "menuBar")
+            DockIcon.update()
+        }
+    }
+    /// Drop the Dock icon while no window is open, leaving Haul in the menu bar. Only applies with `menuBar` on.
+    var hideDockWhenClosed: Bool {
+        didSet {
+            save(hideDockWhenClosed, "hideDockWhenClosed")
+            DockIcon.update()
+        }
+    }
     var dockProgress: Bool {
         didSet {
             save(dockProgress, "dockProgress")
@@ -202,6 +214,7 @@ final class AppSettings {
         appearance = Appearance(rawValue: d.string(forKey: "appearance") ?? "") ?? .auto
         accent = AccentChoice(rawValue: d.string(forKey: "accent") ?? "") ?? .blue
         menuBar = d.object(forKey: "menuBar") as? Bool ?? true
+        hideDockWhenClosed = d.object(forKey: "hideDockWhenClosed") as? Bool ?? false
         dockProgress = d.object(forKey: "dockProgress") as? Bool ?? true
         notify = d.object(forKey: "notify") as? Bool ?? true
         notifyAdded = d.object(forKey: "notifyAdded") as? Bool ?? false

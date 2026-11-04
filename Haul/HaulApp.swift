@@ -216,6 +216,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.servicesProvider = ServiceProvider.shared
         Task.detached(priority: .utility) { BrowserHosts.install() }
         RemoteServer.shared.update()
+        DockIcon.observeWindows()
     }
 
     /// haul://add links from other apps and browser extensions.
@@ -231,5 +232,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         DownloadStore.shared.save()
+    }
+}
+
+/// Shows the Dock icon while a window is open, and hides it once the last one closes
+/// when the user chose to keep Haul only in the menu bar.
+enum DockIcon {
+    static func observeWindows() {
+        let center = NotificationCenter.default
+        // The closing window is still on screen during `willClose`, so look once it's gone.
+        center.addObserver(forName: NSWindow.willCloseNotification, object: nil, queue: .main) { _ in
+            DispatchQueue.main.async { update() }
+        }
+        center.addObserver(forName: NSWindow.didBecomeMainNotification, object: nil, queue: .main) { _ in update() }
+        // Haul may start with no window, e.g. when it was closed at quit.
+        DispatchQueue.main.async { update() }
+    }
+
+    /// Call before bringing up a window: an accessory app can be refused activation, and its
+    /// menu bar only appears when it's activated after becoming a regular app.
+    static func show() {
+        if NSApp.activationPolicy() != .regular { NSApp.setActivationPolicy(.regular) }
+    }
+
+    static func update() {
+        guard let app = NSApp, !app.isHidden else { return }  // ⌘H hides windows without closing them.
+        let settings = AppSettings.shared
+        // Only Haul's own windows count: not the status item, the menu bar popover, open panels or alerts.
+        let windowOpen = app.windows.contains { !($0 is NSPanel) && $0.canBecomeMain && ($0.isVisible || $0.isMiniaturized) }
+        let policy: NSApplication.ActivationPolicy =
+            settings.menuBar && settings.hideDockWhenClosed && !windowOpen ? .accessory : .regular
+        guard app.activationPolicy() != policy else { return }
+        app.setActivationPolicy(policy)
+        // Otherwise Haul stays frontmost with its menus showing and no window to type into.
+        if policy == .accessory && app.isActive { app.hide(nil) }
     }
 }
