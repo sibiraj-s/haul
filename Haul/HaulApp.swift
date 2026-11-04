@@ -193,7 +193,7 @@ extension FocusedValues {
 private struct CheckForUpdatesButton: View {
     var body: some View {
         Button("Check for Updates…") { Updater.shared.checkNow() }
-            .disabled(Updater.shared.isEnabled && !Updater.shared.canCheck)
+            .disabled(!Updater.shared.canCheckNow)
     }
 }
 
@@ -217,6 +217,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Task.detached(priority: .utility) { BrowserHosts.install() }
         RemoteServer.shared.update()
         DockIcon.observeWindows()
+        MenuBarContextMenu.install()
     }
 
     /// haul://add links from other apps and browser extensions.

@@ -182,3 +182,41 @@ private struct HoverRow<Content: View>: View {
         .onHover { hovering = $0 }
     }
 }
+
+/// Right-click (or Control-click) on the menu bar icon shows app-level actions, which are otherwise
+/// out of reach when the window is closed and the Dock icon is hidden.
+/// `MenuBarExtra` has no context menu of its own, so catch the click on its status bar window.
+enum MenuBarContextMenu {
+    static func install() {
+        NSEvent.addLocalMonitorForEvents(matching: [.rightMouseDown, .leftMouseDown]) { event in
+            guard event.type == .rightMouseDown || event.modifierFlags.contains(.control),
+                let window = event.window, window.className == "NSStatusBarWindow",
+                let view = window.contentView
+            else { return event }
+            // Close the popover if it's open, so it doesn't stay up under the menu.
+            for w in NSApp.windows where w.isVisible && w.className.contains("MenuBarExtra") { w.close() }
+            // No key equivalents: they don't reach Haul while it has no window and no Dock icon.
+            let menu = NSMenu()
+            menu.autoenablesItems = false
+            menu.addItem(withTitle: "Settings…", action: #selector(Actions.settings), keyEquivalent: "").target = Actions.shared
+            let update = menu.addItem(withTitle: "Check for Updates…", action: #selector(Actions.checkForUpdates), keyEquivalent: "")
+            update.target = Actions.shared
+            update.isEnabled = Updater.shared.canCheckNow
+            menu.addItem(.separator())
+            menu.addItem(withTitle: "Quit Haul", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "")
+            let button = view as? NSButton
+            button?.highlight(true)
+            menu.popUp(positioning: nil, at: NSPoint(x: 0, y: view.isFlipped ? view.bounds.maxY + 4 : -4), in: view)
+            button?.highlight(false)
+            return nil  // Don't also open the popover.
+        }
+    }
+
+    private final class Actions: NSObject {
+        static let shared = Actions()
+
+        @objc func settings() { SettingsWindow.shared.show() }
+
+        @objc func checkForUpdates() { Updater.shared.checkNow() }
+    }
+}

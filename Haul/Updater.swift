@@ -51,11 +51,17 @@ final class Updater {
         }
     }
 
+    /// Whether "Check for Updates…" can run now: always, when it opens the releases page.
+    var canCheckNow: Bool { !isEnabled || canCheck }
+
     /// "Check for Updates…": Sparkle's window reports the result.
     func checkNow() {
         if !isEnabled {
             NSWorkspace.shared.open(Self.releasesPage)
         } else if canCheck {
+            // Sparkle's window needs Haul active, which an accessory app can be refused.
+            DockIcon.show()
+            NSApp.activate()
             controller.checkForUpdates(nil)
         }
     }

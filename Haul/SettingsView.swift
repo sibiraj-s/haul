@@ -206,7 +206,7 @@ private struct GeneralSettings: View {
             }
             SettingRow(title: "Version \(updater.currentVersion)") {
                 PillButton(title: updater.isEnabled ? "Check Now" : "Releases", height: 24, fontSize: 12) { updater.checkNow() }
-                    .disabled(updater.isEnabled && !updater.canCheck)
+                    .disabled(!updater.canCheckNow)
             }
         }
     }
