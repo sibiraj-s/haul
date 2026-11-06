@@ -199,7 +199,7 @@ struct InspectorView: View {
                     .textSelection(.enabled)
                     .help(d.sha256 ?? "")
             }
-            if d.extract == true && Extractor.canExtract(d.name) {
+            if Extractor.canExtract(d.name) && (d.extract == true || d.extracting || d.extractedURL != nil || d.extractError != nil) {
                 DetailRow("Extract") { extraction(d) }
             }
             if let whenDone = d.whenDone, whenDone != .nothing, d.status != .completed {

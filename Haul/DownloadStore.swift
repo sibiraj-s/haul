@@ -597,8 +597,30 @@ final class DownloadStore {
         dirty = true
     }
 
-    func open(_ d: Download) {
-        if let url = d.fileURL { NSWorkspace.shared.open(url) }
+    /// Opens a finished download. Archives that would go to Archive Utility are unpacked by Haul
+    /// instead: launched from the sandbox, Archive Utility can't write beside the archive and
+    /// unpacks into ~/Downloads. Like Archive Utility, the result is shown, not opened.
+    func open(_ download: Download) {
+        // The live item: a view's copy may predate an extraction that has since finished.
+        let d = index(download.id).map { items[$0] } ?? download
+        guard let url = d.fileURL else { return }
+        _ = destinationFolder(for: d)  // makes sure a picked folder's sandbox access is active
+        let fm = FileManager.default
+        guard Extractor.canExtract(url.lastPathComponent), fm.fileExists(atPath: url.path),
+            NSWorkspace.shared.urlForApplication(toOpen: url).flatMap({ Bundle(url: $0)?.bundleIdentifier })
+                == "com.apple.archiveutility"
+        else {
+            NSWorkspace.shared.open(url)
+            return
+        }
+        if let extracted = d.extractedURL, fm.fileExists(atPath: extracted.path) {
+            Self.perform(.reveal, on: extracted)
+        } else if d.extractError != nil {
+            // Haul couldn't unpack it before, e.g. password-protected; Archive Utility still can.
+            NSWorkspace.shared.open(url)
+        } else if !d.extracting {
+            extract(d.id, url, then: .reveal, openOnFailure: true)
+        }
     }
 
     func revealInFinder(_ d: Download) {
@@ -904,21 +926,27 @@ final class DownloadStore {
     }
 
     /// Unpacks a finished archive next to it, in the background, then carries out `whenDone`.
-    private func extract(_ id: UUID, _ archive: URL, then whenDone: WhenDone) {
+    /// `openOnFailure` hands the archive to its default app if Haul can't unpack it.
+    private func extract(_ id: UUID, _ archive: URL, then whenDone: WhenDone, openOnFailure: Bool = false) {
         guard let i = index(id) else { return }
         _ = destinationFolder(for: items[i])  // makes sure a picked folder's sandbox access is active
         items[i].extracting = true
         Task.detached(priority: .utility) {
             let result = Result { try Extractor.extract(archive) }
-            await MainActor.run { DownloadStore.shared.extractionFinished(id, result, archive: archive, then: whenDone) }
+            await MainActor.run {
+                DownloadStore.shared.extractionFinished(id, result, archive: archive, then: whenDone, openOnFailure: openOnFailure)
+            }
         }
     }
 
-    private func extractionFinished(_ id: UUID, _ result: Result<URL, Error>, archive: URL, then whenDone: WhenDone) {
+    private func extractionFinished(
+        _ id: UUID, _ result: Result<URL, Error>, archive: URL, then whenDone: WhenDone, openOnFailure: Bool
+    ) {
         // Done even if the download has left the list meanwhile ("Remove When Finished").
         switch result {
         case .success(let url): Self.perform(whenDone, on: url)
         // Opening the archive would only unpack it again; showing it still finds the download.
+        case .failure where openOnFailure: NSWorkspace.shared.open(archive)
         case .failure: if whenDone == .reveal { Self.perform(.reveal, on: archive) }
         }
         guard let i = index(id) else { return }
@@ -928,8 +956,10 @@ final class DownloadStore {
             items[i].extractedURL = url
             items[i].extractError = nil
         case .failure(let error):
+            items[i].extractedURL = nil
             items[i].extractError = error.localizedDescription
-            if settings.notifyFailed { Notifier.extractFailed(items[i]) }
+            // With `openOnFailure` the archive has opened in its app instead; that's not a failure to report.
+            if settings.notifyFailed && !openOnFailure { Notifier.extractFailed(items[i]) }
         }
         dirty = true
     }
@@ -1241,6 +1271,9 @@ extension Download {
         size = info.size
         resumable = info.acceptsRanges
         segments = Segment.split(size: info.size, connections: connections, resumable: info.acceptsRanges)
+        // The file is downloaded from the start, so anything extracted came from the old one.
+        extractedURL = nil
+        extractError = nil
     }
 }
 
