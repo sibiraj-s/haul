@@ -1,6 +1,6 @@
 {
   "name": "haul",
-  "version": "1.7.0",
+  "version": "1.7.1",
   "private": true,
   "description": "Release and repo tooling for Haul (Changesets, commit hooks, formatting)",
   "license": "MIT",
