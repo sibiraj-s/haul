@@ -1,5 +1,11 @@
 # haul
 
+## 1.8.0
+
+### Minor Changes
+
+- 9e02bbf: Extraction progress: a small window shows archives as they unpack, with a button to stop one
+
 ## 1.7.1
 
 ### Patch Changes
