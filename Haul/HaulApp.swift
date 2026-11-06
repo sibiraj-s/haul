@@ -232,6 +232,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 
     func applicationWillTerminate(_ notification: Notification) {
+        DownloadStore.shared.abandonExtractions()
         DownloadStore.shared.save()
     }
 }

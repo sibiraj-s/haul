@@ -51,6 +51,57 @@ struct ExtractorTests {
         #expect(try Extractor.extract(dir.appending(path: "pair.tar.gz")) == dir.appending(path: "pair 2"))
     }
 
+    @Test func stoppedExtractionLeavesOnlyTheArchive() throws {
+        let dir = try Self.scratch()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        try Self.write("a", to: dir.appending(path: "src/a.txt"))
+        let archive = dir.appending(path: "a.zip")
+        try Self.run("/usr/bin/ditto", ["-c", "-k", dir.appending(path: "src").path, archive.path])
+        try FileManager.default.removeItem(at: dir.appending(path: "src"))
+
+        let job = Extractor.Job()
+        job.stop()
+        #expect(throws: CancellationError.self) { try Extractor.extract(archive, job: job) }
+        #expect(try FileManager.default.contentsOfDirectory(atPath: dir.path) == ["a.zip"])
+    }
+
+    @Test func progressCountsWhatTheToolWasGiven() throws {
+        let dir = try Self.scratch()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        try Self.write("a", to: dir.appending(path: "src/a.txt"))
+        try Self.run("/usr/bin/ditto", ["-c", "-k", dir.appending(path: "src").path, dir.appending(path: "a.zip").path])
+        try Self.run(
+            "/usr/bin/bsdtar",
+            ["--format", "7zip", "-c", "-f", dir.appending(path: "a.7z").path, "-C", dir.appending(path: "src").path, "a.txt"])
+
+        let zip = Extractor.Job()
+        #expect(zip.fraction == nil)
+        _ = try Extractor.extract(dir.appending(path: "a.zip"), job: zip)
+        #expect(zip.fraction == 1)
+
+        // 7z is read from the file by bsdtar itself, so there's no progress to show.
+        let sevenZip = Extractor.Job()
+        let result = try Extractor.extract(dir.appending(path: "a.7z"), job: sevenZip)
+        #expect(try String(contentsOf: result, encoding: .utf8) == "a")
+        #expect(sevenZip.fraction == nil)
+    }
+
+    @Test func zipKeepsPermissionsAndSymlinks() throws {
+        let dir = try Self.scratch()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let fm = FileManager.default
+        let tool = dir.appending(path: "src/Tool")
+        try Self.write("#!/bin/sh", to: tool.appending(path: "run"))
+        try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: tool.appending(path: "run").path)
+        try fm.createSymbolicLink(atPath: tool.appending(path: "link").path, withDestinationPath: "run")
+        try Self.run("/usr/bin/ditto", ["-c", "-k", "--keepParent", tool.path, dir.appending(path: "Tool.zip").path])
+
+        let result = try Extractor.extract(dir.appending(path: "Tool.zip"))
+        let mode = try fm.attributesOfItem(atPath: result.appending(path: "run").path)[.posixPermissions] as? Int
+        #expect(mode == 0o755)
+        #expect(try fm.destinationOfSymbolicLink(atPath: result.appending(path: "link").path) == "run")
+    }
+
     @Test func damagedArchiveFailsAndCleansUp() throws {
         let dir = try Self.scratch()
         defer { try? FileManager.default.removeItem(at: dir) }

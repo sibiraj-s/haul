@@ -55,6 +55,18 @@ final class DownloadStore {
     @ObservationIgnored private var engines: [UUID: SegmentedDownloader] = [:]
     /// Downloads whose probe is in flight, with a token for that probe so a stale one can tell it was superseded.
     @ObservationIgnored private var probing: [UUID: UUID] = [:]
+
+    /// An archive being extracted, as the extraction window shows it. Kept apart from `items`
+    /// so it stays listed if the download is removed meanwhile ("Remove When Finished").
+    struct Extraction: Identifiable {
+        let download: Download
+        /// How far along it is, when that can be seen.
+        var fraction: Double?
+        var id: UUID { download.id }
+    }
+    private(set) var extractions: [Extraction] = []
+    @ObservationIgnored private var extractionJobs: [UUID: Extractor.Job] = [:]
+    @ObservationIgnored private var extractionPolling: Task<Void, Never>?
     @ObservationIgnored private let limiter = RateLimiter()
     /// Recent (bytes, time) readings per download; speed is measured across this window like curl's progress meter.
     @ObservationIgnored private var samples: [UUID: [(bytes: Int64, at: Date)]] = [:]
@@ -362,6 +374,7 @@ final class DownloadStore {
                 alert.runModal()
                 return
             } catch {}  // Already gone, so there's nothing left to trash.
+            extractionJobs[id]?.stop()  // nothing to unpack once the archive is in the Trash
         }
         stopEngine(at: i)
         if items[i].status != .completed { try? FileManager.default.removeItem(at: partURL(id)) }
@@ -928,20 +941,59 @@ final class DownloadStore {
     /// Unpacks a finished archive next to it, in the background, then carries out `whenDone`.
     /// `openOnFailure` hands the archive to its default app if Haul can't unpack it.
     private func extract(_ id: UUID, _ archive: URL, then whenDone: WhenDone, openOnFailure: Bool = false) {
-        guard let i = index(id) else { return }
+        guard let i = index(id), extractionJobs[id] == nil else { return }
         _ = destinationFolder(for: items[i])  // makes sure a picked folder's sandbox access is active
         items[i].extracting = true
+        let job = Extractor.Job()
+        extractionJobs[id] = job
+        extractions.append(Extraction(download: items[i]))
+        ExtractionPanel.shared.show()
+        followExtractions()
         Task.detached(priority: .utility) {
-            let result = Result { try Extractor.extract(archive) }
+            let result = Result { try Extractor.extract(archive, job: job) }
             await MainActor.run {
                 DownloadStore.shared.extractionFinished(id, result, archive: archive, then: whenDone, openOnFailure: openOnFailure)
             }
         }
     }
 
+    /// Ends extractions when Haul quits, so no tool keeps running or leaves a hidden folder behind.
+    func abandonExtractions() {
+        for job in extractionJobs.values { job.abandon() }
+    }
+
+    /// Stops an extraction from the extraction window; what was unpacked so far is discarded.
+    func stopExtraction(_ id: UUID) {
+        extractionJobs[id]?.stop()
+    }
+
+    /// Updates the extraction window's progress while anything is being extracted.
+    private func followExtractions() {
+        guard extractionPolling == nil else { return }
+        extractionPolling = Task {
+            while !extractions.isEmpty {
+                for k in extractions.indices {
+                    let fraction = extractionJobs[extractions[k].id]?.fraction
+                    if fraction != extractions[k].fraction { extractions[k].fraction = fraction }
+                }
+                try? await Task.sleep(for: .milliseconds(250))
+            }
+            extractionPolling = nil
+        }
+    }
+
     private func extractionFinished(
         _ id: UUID, _ result: Result<URL, Error>, archive: URL, then whenDone: WhenDone, openOnFailure: Bool
     ) {
+        extractionJobs[id] = nil
+        extractions.removeAll { $0.id == id }
+        if extractions.isEmpty { ExtractionPanel.shared.close() }
+        if case .failure(let error) = result, error is CancellationError {
+            // Stopped by hand: nothing to show, open or report.
+            if let i = index(id) { items[i].extracting = false }
+            dirty = true
+            return
+        }
         // Done even if the download has left the list meanwhile ("Remove When Finished").
         switch result {
         case .success(let url): Self.perform(whenDone, on: url)
