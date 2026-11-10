@@ -63,6 +63,18 @@ struct MenuBarPopover: View {
                 Text("Haul").fontWeight(.bold)
                 Spacer()
                 Text(store.subtitle).font(.system(size: 11)).foregroundStyle(Theme.text2).monospacedDigit()
+                Button {
+                    NSApp.terminate(nil)
+                } label: {
+                    Image(systemName: "power")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(Theme.text2)
+                        .frame(width: 18, height: 18)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.pressable)
+                .help("Quit Haul")
+                .accessibilityLabel("Quit Haul")
             }
             .padding(.horizontal, 14)
             .padding(.top, 12)
