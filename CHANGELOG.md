@@ -1,5 +1,11 @@
 # haul
 
+## 1.9.1
+
+### Patch Changes
+
+- a49b4dd: Quit Haul from the menu bar popover with the new power button
+
 ## 1.9.0
 
 ### Minor Changes
