@@ -299,6 +299,24 @@ final class DownloadStore {
         }
     }
 
+    /// What gets a download moving: pause or resume it, or for a failed one, what it needs to
+    /// go again — a fresh link, a restart when the partial data no longer matches, or a retry.
+    func advance(_ id: UUID) {
+        guard let d = items.first(where: { $0.id == id }) else { return }
+        switch (d.status, d.issue) {
+        case (.failed, .linkExpired): beginUpdateLink(id)
+        case (.failed, .fileChanged): restart(id)
+        default: toggle(id)
+        }
+    }
+
+    /// Opens the file once it finishes, or stops doing so if that was already set.
+    func toggleOpenWhenDone(_ id: UUID) {
+        guard let i = index(id), items[i].status != .completed else { return }
+        items[i].whenDone = items[i].whenDone == .open ? nil : .open
+        dirty = true
+    }
+
     /// Starts `id` because the user asked to, so it keeps going while waiting for the network.
     private func beginByHand(_ id: UUID) {
         if waitingForNetwork { startedOnExpensive.insert(id) }

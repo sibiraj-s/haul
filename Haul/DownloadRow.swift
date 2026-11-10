@@ -126,14 +126,15 @@ struct DownloadRow: View {
 func statusLine(_ d: Download, queuePosition: Int? = nil) -> String {
     let done = formatBytes(d.received)
     let total = d.size.map(formatBytes) ?? "unknown size"
+    let opens = d.whenDone == .open ? " · Opens when done" : ""
     switch d.status {
     case .downloading:
-        if d.speed <= 0 { return d.segments.isEmpty ? "Connecting…" : "\(done) of \(total) — connecting…" }
-        return "\(done) of \(total) — \(formatBytes(d.speed))/s, \(formatDuration(d.remainingTime)) left"
-    case .paused: return "Paused — \(done) of \(total)"
+        if d.speed <= 0 { return (d.segments.isEmpty ? "Connecting…" : "\(done) of \(total) — connecting…") + opens }
+        return "\(done) of \(total) — \(formatBytes(d.speed))/s, \(formatDuration(d.remainingTime)) left" + opens
+    case .paused: return "Paused — \(done) of \(total)" + opens
     case .queued:
         let waiting = queuePosition.map { "Waiting — #\($0) in queue" } ?? "Waiting"
-        return d.size.map { "\(waiting) · \(formatBytes($0))" } ?? waiting
+        return (d.size.map { "\(waiting) · \(formatBytes($0))" } ?? waiting) + opens
     case .failed:
         let error = d.error ?? "Unknown error"
         if d.retryAt != nil && AppSettings.shared.autoRetry {

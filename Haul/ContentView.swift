@@ -536,7 +536,13 @@ private struct DownloadList: View {
                     ForEach(rows) { d in
                         DownloadRow(download: d, selected: d.id == store.selection)
                             .id(d.id)
-                            .onTapGesture(count: 2) { d.status == .completed ? store.open(d) : store.toggle(d.id) }
+                            .onTapGesture(count: 2) {
+                                switch d.status {
+                                case .completed: store.open(d)
+                                case .downloading: store.toggleOpenWhenDone(d.id)
+                                default: store.advance(d.id)
+                                }
+                            }
                             .simultaneousGesture(
                                 TapGesture().onEnded {
                                     dragging = nil

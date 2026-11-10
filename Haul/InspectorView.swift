@@ -232,12 +232,7 @@ struct InspectorView: View {
     private func actions(_ d: Download) -> some View {
         VStack(spacing: 6) {
             PillButton(title: primaryLabel(d), prominent: true, expand: true) {
-                switch (d.status, d.issue) {
-                case (.completed, _): store.revealInFinder(d)
-                case (.failed, .linkExpired): store.beginUpdateLink(d.id)
-                case (.failed, .fileChanged): store.restart(d.id)
-                default: store.toggle(d.id)
-                }
+                if d.status == .completed { store.revealInFinder(d) } else { store.advance(d.id) }
             }
             HStack(spacing: 6) {
                 CopyLinkButton(url: d.url)
