@@ -8,7 +8,7 @@ struct MenuBarLabel: View {
     var body: some View {
         let active = !store.downloading.isEmpty
         HStack(spacing: 5) {
-            Image(nsImage: ringImage(progress: active ? store.overallProgress : 0))
+            Image(nsImage: Self.ringImage(progress: active ? store.overallProgress : 0))
             if active {
                 Text("\(formatBytes(store.totalSpeed))/s").monospacedDigit()
             }
@@ -16,15 +16,18 @@ struct MenuBarLabel: View {
         .onAppear { store.openMainWindow = { openWindow(id: "main") } }
     }
 
-    private func ringImage(progress: Double) -> NSImage {
-        let image = NSImage(size: NSSize(width: 17, height: 17), flipped: false) { rect in
-            let center = NSPoint(x: rect.midX, y: rect.midY)
+    static func ringImage(progress: Double) -> NSImage {
+        // Debug builds add a dot at the lower right, so they can be told apart from the installed
+        // app in the menu bar.
+        #if DEBUG
+            let dot: CGFloat = 6
+        #else
+            let dot: CGFloat = 0
+        #endif
+        let image = NSImage(size: NSSize(width: 17 + dot / 3, height: 17), flipped: false) { rect in
+            let center = NSPoint(x: 8.5, y: rect.midY)
             let radius: CGFloat = 6.8
-            let track = NSBezierPath()
-            track.appendArc(withCenter: center, radius: radius, startAngle: 0, endAngle: 360)
-            track.lineWidth = 1.5
-            NSColor.black.withAlphaComponent(0.25).setStroke()
-            track.stroke()
+            // No ring while idle: only progress is drawn around the arrow.
             if progress > 0 {
                 let arc = NSBezierPath()
                 arc.appendArc(withCenter: center, radius: radius, startAngle: 90, endAngle: 90 - 360 * min(1, progress), clockwise: true)
@@ -44,6 +47,15 @@ struct MenuBarLabel: View {
             arrow.lineJoinStyle = .round
             NSColor.black.setStroke()
             arrow.stroke()
+            if dot > 0 {
+                // Cut out of the ring with a gap around it, so it stays visible.
+                let spot = NSRect(x: rect.maxX - dot, y: 0, width: dot, height: dot)
+                NSGraphicsContext.current?.compositingOperation = .clear
+                NSBezierPath(ovalIn: spot.insetBy(dx: -1.5, dy: -1.5)).fill()
+                NSGraphicsContext.current?.compositingOperation = .sourceOver
+                NSColor.black.setFill()
+                NSBezierPath(ovalIn: spot).fill()
+            }
             return true
         }
         image.isTemplate = true
@@ -60,7 +72,7 @@ struct MenuBarPopover: View {
         let recent = store.items.filter { $0.status == .completed }.prefix(3)
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .firstTextBaseline) {
-                Text("Haul").fontWeight(.bold)
+                Text(AppInfo.name).fontWeight(.bold)
                 Spacer()
                 Text(store.subtitle).font(.system(size: 11)).foregroundStyle(Theme.text2).monospacedDigit()
                 Button {
@@ -73,8 +85,8 @@ struct MenuBarPopover: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.pressable)
-                .help("Quit Haul")
-                .accessibilityLabel("Quit Haul")
+                .help("Quit \(AppInfo.name)")
+                .accessibilityLabel("Quit \(AppInfo.name)")
             }
             .padding(.horizontal, 14)
             .padding(.top, 12)
@@ -131,7 +143,7 @@ struct MenuBarPopover: View {
                     dismiss()
                     store.requestAdd()
                 }
-                PillButton(title: "Open Haul", prominent: true, height: 26, fontSize: 12, expand: true) {
+                PillButton(title: "Open \(AppInfo.name)", prominent: true, height: 26, fontSize: 12, expand: true) {
                     dismiss()
                     store.showMainWindow()
                 }
@@ -215,7 +227,7 @@ enum MenuBarContextMenu {
             update.target = Actions.shared
             update.isEnabled = Updater.shared.canCheckNow
             menu.addItem(.separator())
-            menu.addItem(withTitle: "Quit Haul", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "")
+            menu.addItem(withTitle: "Quit \(AppInfo.name)", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "")
             let button = view as? NSButton
             button?.highlight(true)
             menu.popUp(positioning: nil, at: NSPoint(x: 0, y: view.isFlipped ? view.bounds.maxY + 4 : -4), in: view)

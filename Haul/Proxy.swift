@@ -108,9 +108,9 @@ nonisolated struct ProxySettings: Sendable, Equatable {
 /// A password kept in the Keychain rather than in preferences.
 nonisolated struct KeychainPassword {
     /// The custom proxy's password.
-    static let proxy = KeychainPassword(name: "proxy", label: "Haul proxy password")
+    static let proxy = KeychainPassword(name: "proxy", label: "\(AppInfo.name) proxy password")
     /// The password for the remote downloads page and API (RemoteServer).
-    static let remote = KeychainPassword(name: "remote", label: "Haul remote downloads password")
+    static let remote = KeychainPassword(name: "remote", label: "\(AppInfo.name) remote downloads password")
 
     let name: String
     let label: String
@@ -118,7 +118,7 @@ nonisolated struct KeychainPassword {
     private var item: [String: Any] {
         [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: "\(Bundle.main.bundleIdentifier ?? "dev.sibiraj.haul").\(name)",
+            kSecAttrService as String: "\(Bundle.main.bundleIdentifier!).\(name)",
             kSecAttrAccount as String: name,
         ]
     }

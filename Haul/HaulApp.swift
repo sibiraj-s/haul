@@ -14,6 +14,11 @@ enum Launcher {
     }
 }
 
+/// "Haul Dev" for a Debug build, so it can be told apart from the installed app.
+nonisolated enum AppInfo {
+    static let name = Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as! String
+}
+
 private struct TestHostApp: App {
     var body: some Scene { Settings { EmptyView() } }
 }
@@ -24,7 +29,7 @@ struct HaulApp: App {
     @Bindable private var settings = AppSettings.shared
 
     var body: some Scene {
-        Window("Haul", id: "main") {
+        Window(AppInfo.name, id: "main") {
             ContentView()
                 .environment(store)
                 .frame(minWidth: 860, minHeight: 480)
@@ -59,7 +64,7 @@ private struct HaulCommands: Commands {
 
     var body: some Commands {
         CommandGroup(replacing: .appInfo) {
-            Button("About Haul") {
+            Button("About \(AppInfo.name)") {
                 // The standard panel adds the build number in parentheses; it's the same as the version.
                 NSApp.orderFrontStandardAboutPanel(options: [
                     .applicationVersion: "Version \(Updater.shared.currentVersion)",
@@ -214,7 +219,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if settings.notify || settings.notifyAdded || settings.notifyFailed || settings.dockProgress { Notifier.requestAuthorization() }
         Updater.shared.start()
         NSApp.servicesProvider = ServiceProvider.shared
-        Task.detached(priority: .utility) { BrowserHosts.install() }
+        // Only the installed app: the browsers' manifests name one copy of Haul, and a Debug build
+        // would point them at itself, sending downloads from the browser extension to it.
+        #if !DEBUG
+            Task.detached(priority: .utility) { BrowserHosts.install() }
+        #endif
         RemoteServer.shared.update()
         DockIcon.observeWindows()
         MenuBarContextMenu.install()

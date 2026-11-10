@@ -273,7 +273,7 @@ private struct BrowserRow<Control: View>: View {
 /// Whether the Safari extension that ships inside Haul is turned on, with a button to Safari's
 /// settings, where it's turned on.
 private struct SafariExtensionRow: View {
-    private static let identifier = (Bundle.main.bundleIdentifier ?? "") + ".safari-extension"
+    private static let identifier = Bundle.main.bundleIdentifier! + ".safari-extension"
     @State private var enabled: Bool?
 
     var body: some View {
@@ -675,7 +675,7 @@ private struct AboutSettings: View {
             Image(nsImage: NSApp.applicationIconImage)
                 .resizable()
                 .frame(width: 96, height: 96)
-            Text("Haul")
+            Text(AppInfo.name)
                 .font(.system(size: 20, weight: .semibold))
                 .padding(.top, 8)
             Text("Version \(Updater.shared.currentVersion)")
