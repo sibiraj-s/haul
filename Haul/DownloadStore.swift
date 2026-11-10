@@ -948,6 +948,9 @@ final class DownloadStore {
         // With extracting, "When done" waits for it, so it never lands on a half-unpacked folder.
         if d.extract == true, let url = items[i].fileURL, Extractor.canExtract(url.lastPathComponent) {
             extract(d.id, url, then: d.whenDone ?? .nothing)
+        } else if d.whenDone == .open {
+            // As a double-click would, so an archive is unpacked in place, not by Archive Utility.
+            open(items[i])
         } else if let url = items[i].fileURL {
             Self.perform(d.whenDone ?? .nothing, on: url)
         }
