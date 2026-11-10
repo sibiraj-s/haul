@@ -1,5 +1,11 @@
 # haul
 
+## 1.9.2
+
+### Patch Changes
+
+- 3e603ad: Zip, tar and 7z archives set to open when done now unpack beside the download instead of in Downloads
+
 ## 1.9.1
 
 ### Patch Changes
