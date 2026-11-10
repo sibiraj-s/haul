@@ -1,5 +1,11 @@
 # haul
 
+## 1.9.0
+
+### Minor Changes
+
+- e79c8a0: Double-click a download in progress to open it when it finishes; double-clicking a failed one now updates its link or restarts it when a retry can't work
+
 ## 1.8.0
 
 ### Minor Changes
