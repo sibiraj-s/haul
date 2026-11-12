@@ -212,6 +212,8 @@ private struct CommandLineToolButton: View {
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    private var confirmingQuit = false
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         AppSettings.shared.applyAppearance()
         UNUserNotificationCenter.current().delegate = Notifier.shared
@@ -239,6 +241,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Keep running in the menu bar after the window closes.
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+
+    /// Asks before a quit that would interrupt downloads or extractions.
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        // An update's relaunch was already agreed to in Sparkle's window.
+        if Updater.shared.isRelaunching { return .terminateNow }
+        // Logging out, restarting and shutting down say why in the quit event. Asking then would
+        // hold them up, and cancel them if nobody answers.
+        let event = NSAppleEventManager.shared().currentAppleEvent
+        if event?.attributeDescriptor(forKeyword: AEKeyword(kAEQuitReason)) != nil { return .terminateNow }
+        // Quit can be chosen again from the Dock or the menu bar while the alert is up.
+        guard !confirmingQuit else { return .terminateCancel }
+        confirmingQuit = true
+        defer { confirmingQuit = false }
+        return DownloadStore.shared.confirmQuit() ? .terminateNow : .terminateCancel
+    }
 
     func applicationWillTerminate(_ notification: Notification) {
         DownloadStore.shared.abandonExtractions()

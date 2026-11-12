@@ -242,6 +242,7 @@ export const defaultSettings = {
   dockProgress: true,
   launchAtLogin: false,
   confirmRemove: true,
+  confirmQuit: true,
   removeFinished: 'afterDays' as ListCleanup,
   removeAfterDays: 90,
   removeDeleted: true,

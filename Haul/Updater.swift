@@ -20,6 +20,9 @@ final class Updater {
     /// False while a check or an update is in progress.
     private(set) var canCheck = false
 
+    /// True once Sparkle is about to quit Haul to install an update and reopen it.
+    @ObservationIgnored fileprivate(set) var isRelaunching = false
+
     /// Sparkle's own setting: it checks once a day by default and saves the choice itself.
     /// Sparkle never changes it on its own, since Info.plist turns its permission prompt off.
     var automaticallyChecks: Bool {
@@ -33,7 +36,7 @@ final class Updater {
     }
 
     @ObservationIgnored private let controller = SPUStandardUpdaterController(
-        startingUpdater: false, updaterDelegate: nil, userDriverDelegate: nil)
+        startingUpdater: false, updaterDelegate: UpdaterEvents.shared, userDriverDelegate: nil)
     @ObservationIgnored private var observation: NSKeyValueObservation?
 
     var currentVersion: String {
@@ -64,5 +67,20 @@ final class Updater {
             NSApp.activate()
             controller.checkForUpdates(nil)
         }
+    }
+}
+
+/// Follows an update's install so the quit it asks for isn't questioned. Sparkle calls these on the main thread.
+private final class UpdaterEvents: NSObject, SPUUpdaterDelegate {
+    static let shared = UpdaterEvents()
+
+    func updaterWillRelaunchApplication(_ updater: SPUUpdater) {
+        MainActor.assumeIsolated { Updater.shared.isRelaunching = true }
+    }
+
+    /// An install that failed leaves Haul running, and quitting is the user's choice again.
+    func updater(_ updater: SPUUpdater, didFinishUpdateCycleFor updateCheck: SPUUpdateCheck, error: (any Error)?) {
+        guard error != nil else { return }
+        MainActor.assumeIsolated { Updater.shared.isRelaunching = false }
     }
 }

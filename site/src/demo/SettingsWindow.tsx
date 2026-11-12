@@ -227,6 +227,9 @@ function General({ demo }: { demo: Demo }) {
           {toggle('removeDeleted')}
         </Row>
         <Row title="Ask before removing downloads">{toggle('confirmRemove')}</Row>
+        <Row title="Ask before quitting while downloading" caption="Also while an archive is being extracted.">
+          {toggle('confirmQuit')}
+        </Row>
       </Group>
       <Group>
         <Row title="Check for updates automatically" caption="Once a day, from Haul's GitHub releases.">

@@ -566,7 +566,7 @@ final class DownloadStore {
         // Without the dialog (confirmation off) the file is always kept.
         let asked = settings.confirmRemove
         let (confirmed, trash) = confirm(
-            "Remove “\(d.name)”?", detail, button: "Remove",
+            "Remove “\(d.name)”?", detail, button: "Remove", asking: \.confirmRemove,
             checkbox: hasFile ? "Also move the file to the Trash" : nil,
             checked: settings.trashOnRemove)
         guard confirmed else { return }
@@ -585,21 +585,52 @@ final class DownloadStore {
         }
     }
 
+    /// Asks before a quit that would interrupt downloads or extractions (unless turned off in
+    /// Settings). False when the quit should be called off.
+    func confirmQuit() -> Bool {
+        guard settings.confirmQuit else { return true }
+        let app = AppInfo.name
+        var detail: [String] = []
+        switch downloading.count {
+        case 0: break
+        case 1: detail.append("A download is in progress. It will continue the next time you open \(app).")
+        case let n: detail.append("\(n) downloads are in progress. They will continue the next time you open \(app).")
+        }
+        // Unlike downloads, extractions don't pick up again: quitting discards them.
+        switch extractions.count {
+        case 0: break
+        case 1: detail.append("An archive is being extracted. What's been unpacked so far will be discarded.")
+        case let n: detail.append("\(n) archives are being extracted. What's been unpacked so far will be discarded.")
+        }
+        guard !detail.isEmpty else { return true }
+        // Quit from the menu bar can come with no window open: an accessory app can be refused
+        // activation, which would leave the alert behind other apps.
+        DockIcon.show()
+        let confirmed = confirm(
+            "Quit \(app)?", detail.joined(separator: " "), button: "Quit", destructive: false, asking: \.confirmQuit,
+            checkbox: nil
+        ).confirmed
+        if !confirmed { DockIcon.update() }
+        return confirmed
+    }
+
     /// A standalone alert rather than a sheet: sheets on Haul's title-bar-less windows make
     /// AppKit restore the title bar.
     private func confirm(_ title: String, _ detail: String, button: String) -> Bool {
-        confirm(title, detail, button: button, checkbox: nil).confirmed
+        confirm(title, detail, button: button, asking: \.confirmRemove, checkbox: nil).confirmed
     }
 
+    /// `asking` is the setting that "Don't ask again" turns off; with it off, nothing is asked.
     /// `checkbox` adds an option that starts in the `checked` state; the result's `checked` is whether it ended up on.
-    private func confirm(_ title: String, _ detail: String, button: String, checkbox: String?, checked: Bool = false) -> (
-        confirmed: Bool, checked: Bool
-    ) {
-        guard settings.confirmRemove else { return (true, false) }
+    private func confirm(
+        _ title: String, _ detail: String, button: String, destructive: Bool = true,
+        asking: ReferenceWritableKeyPath<AppSettings, Bool>, checkbox: String?, checked: Bool = false
+    ) -> (confirmed: Bool, checked: Bool) {
+        guard settings[keyPath: asking] else { return (true, false) }
         let alert = NSAlert()
         alert.messageText = title
         alert.informativeText = detail
-        alert.addButton(withTitle: button).hasDestructiveAction = true
+        alert.addButton(withTitle: button).hasDestructiveAction = destructive
         alert.addButton(withTitle: "Cancel")
         alert.showsSuppressionButton = true
         alert.suppressionButton?.title = "Don't ask again"
@@ -619,7 +650,7 @@ final class DownloadStore {
         }
         NSApp.activate()
         let confirmed = alert.runModal() == .alertFirstButtonReturn
-        if confirmed && alert.suppressionButton?.state == .on { settings.confirmRemove = false }
+        if confirmed && alert.suppressionButton?.state == .on { settings[keyPath: asking] = false }
         return (confirmed, confirmed && option?.state == .on)
     }
 

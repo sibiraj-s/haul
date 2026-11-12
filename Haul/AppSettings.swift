@@ -127,6 +127,8 @@ final class AppSettings {
     var removeDeleted: Bool { didSet { save(removeDeleted, "removeDeleted") } }
     /// Ask before removing downloads from the list.
     var confirmRemove: Bool { didSet { save(confirmRemove, "confirmRemove") } }
+    /// Ask before quitting while something is downloading or being extracted.
+    var confirmQuit: Bool { didSet { save(confirmQuit, "confirmQuit") } }
     /// Last choice for "Also move the file to the Trash" in the remove dialog.
     var trashOnRemove: Bool { didSet { save(trashOnRemove, "trashOnRemove") } }
     var autoRetry: Bool { didSet { save(autoRetry, "autoRetry") } }
@@ -238,6 +240,7 @@ final class AppSettings {
         removeAfterDays = d.object(forKey: "removeAfterDays") as? Int ?? ListCleanup.legacyDays[cleanup] ?? 90
         removeDeleted = d.object(forKey: "removeDeleted") as? Bool ?? true
         confirmRemove = d.object(forKey: "confirmRemove") as? Bool ?? true
+        confirmQuit = d.object(forKey: "confirmQuit") as? Bool ?? true
         trashOnRemove = d.object(forKey: "trashOnRemove") as? Bool ?? false
         autoRetry = d.object(forKey: "autoRetry") as? Bool ?? true
         proxyMode = ProxyMode(rawValue: d.string(forKey: "proxyMode") ?? "") ?? .system

@@ -197,6 +197,9 @@ private struct GeneralSettings: View {
                 DesignSwitch(isOn: $settings.removeDeleted)
             }
             SettingRow(title: "Ask before removing downloads") { DesignSwitch(isOn: $settings.confirmRemove) }
+            SettingRow(title: "Ask before quitting while downloading", caption: "Also while an archive is being extracted.") {
+                DesignSwitch(isOn: $settings.confirmQuit)
+            }
         }
         DesignGroup {
             if updater.isEnabled {
