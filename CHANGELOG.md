@@ -1,5 +1,11 @@
 # haul
 
+## 1.9.3
+
+### Patch Changes
+
+- 8f66004: Fix downloads from some sites with "The file changed on the server"
+
 ## 1.9.2
 
 ### Patch Changes
