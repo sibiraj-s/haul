@@ -27,6 +27,14 @@ nonisolated final class RangeServer: URLProtocol, @unchecked Sendable {
         var dropAfter: Int64 = 1024 * 1024
         /// Ignores Range and answers every request with the whole file and a 200.
         var ignoreRange = false
+        /// Sent as ETag with every reply.
+        var etag: String?
+        /// Answers requests with If-Range with the whole file and a 200, as if the file had changed.
+        var rejectIfRange = false
+        /// Leaves the ETag off partial replies.
+        var etagOnlyOnWhole = false
+        /// Sent as ETag with partial replies instead of `etag`.
+        var partialETag: String?
         /// Requests starting at these bytes hold back their last chunk until removed from here.
         var hold: Set<Int64> = []
 
@@ -96,7 +104,8 @@ nonisolated final class RangeServer: URLProtocol, @unchecked Sendable {
             return true
         }
         if misplaced { (start, end) = (0, end - start) }
-        if host.ignoreRange { (start, end) = (0, host.size - 1) }
+        let whole = host.ignoreRange || (host.rejectIfRange && request.value(forHTTPHeaderField: "If-Range") != nil)
+        if whole { (start, end) = (0, host.size - 1) }
         self.start = start
 
         let throttled = host.lock.withLock {
@@ -123,10 +132,11 @@ nonisolated final class RangeServer: URLProtocol, @unchecked Sendable {
             return
         }
         var headers = ["Content-Length": "\(end - start + 1)"]
-        if !host.ignoreRange { headers["Content-Range"] = "bytes \(start)-\(end)/\(host.reportedSize ?? host.size)" }
+        if whole || !host.etagOnlyOnWhole, let etag = whole ? host.etag : host.partialETag ?? host.etag { headers["ETag"] = etag }
+        if !whole { headers["Content-Range"] = "bytes \(start)-\(end)/\(host.reportedSize ?? host.size)" }
         if let encoding = host.encoding { headers["Content-Encoding"] = encoding }
         let response = HTTPURLResponse(
-            url: url, statusCode: host.ignoreRange ? 200 : 206, httpVersion: "HTTP/1.1",
+            url: url, statusCode: whole ? 200 : 206, httpVersion: "HTTP/1.1",
             headerFields: headers)!
         client!.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
         send(from: start, to: end, wait: host.delay(start))
@@ -178,7 +188,7 @@ struct SegmentedDownloaderTests {
     private static let mb: Int64 = 1024 * 1024
 
     /// Downloads to the end; also returns the connection limit the engine settled on, if the server pushed back.
-    private func download(_ url: URL, segments: [Segment], connections: Int, partURL: URL)
+    private func download(_ url: URL, segments: [Segment], connections: Int, etag: String? = nil, partURL: URL)
         async -> (Result<Void, Error>, [Segment], serverLimit: Int?)
     {
         let config = URLSessionConfiguration.ephemeral
@@ -186,7 +196,7 @@ struct SegmentedDownloaderTests {
         var engine: SegmentedDownloader?
         let result = await withCheckedContinuation { continuation in
             engine = SegmentedDownloader(
-                url: url, partURL: partURL, segments: segments, connections: connections,
+                url: url, partURL: partURL, segments: segments, connections: connections, etag: etag,
                 browser: nil, limiter: RateLimiter(), configuration: config
             ) {
                 continuation.resume(returning: $0)
@@ -384,6 +394,77 @@ struct SegmentedDownloaderTests {
             Issue.record("expected wrongRange, got \(result)")
             return
         }
+    }
+
+    /// Some servers send an ETag they can't match (unquoted, say), so If-Range always gets the whole file.
+    @Test func aServerThatCantMatchItsOwnETagStillDownloadsInParts() async throws {
+        let size = 8 * Self.mb
+        let host = RangeServer.Host(size: size) { _ in 0.001 }
+        host.etag = "v1"
+        host.rejectIfRange = true
+        let part = partURL()
+        defer { try? FileManager.default.removeItem(at: part) }
+
+        let (result, segments, _) = await download(
+            RangeServer.serve(host), segments: Segment.split(size: size, connections: 2, resumable: true),
+            connections: 2, etag: "v1", partURL: part)
+        try result.get()
+        expectWhole(segments, size: size)
+        #expect(try Data(contentsOf: part) == RangeServer.content(0...size - 1))
+    }
+
+    @Test func partialRepliesWithoutAnETagAreStillUsedAfterIfRangeFails() async throws {
+        let size = 8 * Self.mb
+        let host = RangeServer.Host(size: size) { _ in 0.001 }
+        host.etag = "v1"
+        host.rejectIfRange = true
+        host.etagOnlyOnWhole = true
+        let part = partURL()
+        defer { try? FileManager.default.removeItem(at: part) }
+
+        let (result, segments, _) = await download(
+            RangeServer.serve(host), segments: Segment.split(size: size, connections: 2, resumable: true),
+            connections: 2, etag: "v1", partURL: part)
+        try result.get()
+        expectWhole(segments, size: size)
+        #expect(try Data(contentsOf: part) == RangeServer.content(0...size - 1))
+    }
+
+    @Test func anotherETagOnAPartialReplyAfterIfRangeFailsIsFileChanged() async {
+        let size = 8 * Self.mb
+        let host = RangeServer.Host(size: size) { _ in 0.001 }
+        host.etag = "v1"
+        host.partialETag = "v2"
+        host.rejectIfRange = true
+        let part = partURL()
+        defer { try? FileManager.default.removeItem(at: part) }
+
+        let (result, segments, _) = await download(
+            RangeServer.serve(host), segments: Segment.split(size: size, connections: 2, resumable: true),
+            connections: 2, etag: "v1", partURL: part)
+        guard case .failure(let error) = result, case .fileChanged? = error as? DownloadError else {
+            Issue.record("expected fileChanged, got \(result)")
+            return
+        }
+        #expect(segments.allSatisfy { $0.done == 0 })
+    }
+
+    @Test func aFullReplyWithAnotherETagFailsAsFileChanged() async {
+        let size = 8 * Self.mb
+        let host = RangeServer.Host(size: size) { _ in 0.001 }
+        host.etag = "v2"
+        host.rejectIfRange = true
+        let part = partURL()
+        defer { try? FileManager.default.removeItem(at: part) }
+
+        let (result, segments, _) = await download(
+            RangeServer.serve(host), segments: Segment.split(size: size, connections: 2, resumable: true),
+            connections: 2, etag: "v1", partURL: part)
+        guard case .failure(let error) = result, case .fileChanged? = error as? DownloadError else {
+            Issue.record("expected fileChanged, got \(result)")
+            return
+        }
+        #expect(segments.allSatisfy { $0.done == 0 })
     }
 
     @Test func differentTotalSizeFailsAsFileChangedWithoutRetrying() async {

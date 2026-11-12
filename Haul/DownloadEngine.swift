@@ -321,9 +321,13 @@ nonisolated final class SegmentedDownloader: NSObject, URLSessionDataDelegate, @
     private var checked: Set<String> = []
     /// Each pinned network's check: the start of the file fetched over it, to compare with the partial file.
     private var checks: [String: Check] = [:]
-    /// Requests stopped to hand their slot back to the network that just passed its check; their parts
-    /// carry on over it straight away, without counting as a retry.
+    /// Requests stopped to be sent again another way: to hand their slot back to the network that just
+    /// passed its check, or without If-Range. Their parts carry on straight away, without counting as a retry.
     private var handedOver: Set<ObjectIdentifier> = []
+    /// The server answers If-Range with the whole file though it still has the same version, as one
+    /// that sends an ETag it can't match does. Requests then go without it, and each reply's validator
+    /// is checked on arrival instead.
+    private var ifRangeUnusable = false
 
     private struct Check {
         var request: PinnedRequest?
@@ -348,6 +352,8 @@ nonisolated final class SegmentedDownloader: NSObject, URLSessionDataDelegate, @
         let route: Route
         let from: Int64
         let ranged: Bool
+        /// Sent with If-Range.
+        let conditional: Bool
         let cancel: () -> Void
     }
 
@@ -368,7 +374,8 @@ nonisolated final class SegmentedDownloader: NSObject, URLSessionDataDelegate, @
 
     /// `etag` and `lastModified` identify the version of the file captured when the download started;
     /// ranged requests carry one as If-Range so a server whose file has changed answers 200 instead of
-    /// a mismatched range. `connections` caps how many run at once; 1 for servers that can't serve ranges.
+    /// a mismatched range. For a server that can't match its own validator, replies are checked against
+    /// it instead. `connections` caps how many run at once; 1 for servers that can't serve ranges.
     /// `routes` are the networks to spread those connections over.
     init(
         url: URL, partURL: URL, segments: [Segment], connections: Int, etag: String? = nil, lastModified: String? = nil,
@@ -572,6 +579,7 @@ nonisolated final class SegmentedDownloader: NSObject, URLSessionDataDelegate, @
         let id: ObjectIdentifier
         let cancel: () -> Void
         let start: () -> Void
+        var conditional = false
         if let interface = route.interface {
             // Another server may tag the same file differently, so instead of If-Range each reply's
             // validators are checked on arrival (`sameFile`).
@@ -593,14 +601,18 @@ nonisolated final class SegmentedDownloader: NSObject, URLSessionDataDelegate, @
             cancel = { pinned.cancel() }
             start = { pinned.start() }
         } else {
-            if ranged, let ifRange = etag ?? lastModified { request.setValue(ifRange, forHTTPHeaderField: "If-Range") }
+            if ranged, !ifRangeUnusable, let ifRange = etag ?? lastModified {
+                request.setValue(ifRange, forHTTPHeaderField: "If-Range")
+                conditional = true
+            }
             // Every slot has a session when any route uses URLSession.
             let task = sessions[slot].dataTask(with: request)
             id = ObjectIdentifier(task)
             cancel = { task.cancel() }
             start = { task.resume() }
         }
-        running[id] = Running(segment: index, slot: slot, route: route, from: from, ranged: ranged, cancel: cancel)
+        running[id] = Running(
+            segment: index, slot: slot, route: route, from: from, ranged: ranged, conditional: conditional, cancel: cancel)
         if let end = s.end { requestedEnds[id] = end }
         start()
     }
@@ -664,8 +676,18 @@ nonisolated final class SegmentedDownloader: NSObject, URLSessionDataDelegate, @
             // usable when this is the sole segment and it starts at byte zero.
             let s = current
             if request.ranged && http.statusCode != 206 && !(s.count == 1 && s[index].start + s[index].done == 0) {
-                // With If-Range, a full 200 reply means the validator no longer matches.
-                rejected[id] = !pinned && (etag ?? lastModified) != nil ? DownloadError.fileChanged : DownloadError.noRangeSupport
+                // With If-Range, a full 200 reply means the validator no longer matches. Unless the reply
+                // still carries it: then the server can't match its own validator, and the part is sent
+                // again without If-Range.
+                let matches = validatorMatches(http)
+                if request.conditional && matches == true {
+                    ifRangeUnusable = true
+                    handedOver.insert(id)
+                } else {
+                    // A pinned network's server may tag the same file differently, so its ETag isn't held against it.
+                    let changed = request.conditional || (!pinned && matches == false)
+                    rejected[id] = changed ? DownloadError.fileChanged : DownloadError.noRangeSupport
+                }
                 return false
             }
             // Offsets in a compressed partial reply don't match the bytes URLSession hands over after
@@ -676,6 +698,12 @@ nonisolated final class SegmentedDownloader: NSObject, URLSessionDataDelegate, @
                 return false
             }
             if pinned && !Self.sameFile(http, etag: etag, lastModified: lastModified) {
+                rejected[id] = DownloadError.fileChanged
+                return false
+            }
+            // Without If-Range the server sends the range whatever version it has, so that's checked here.
+            // A reply without that validator says nothing either way; its total size is still checked.
+            if !pinned && request.ranged && !request.conditional && validatorMatches(http) == false {
                 rejected[id] = DownloadError.fileChanged
                 return false
             }
@@ -920,6 +948,15 @@ nonisolated final class SegmentedDownloader: NSObject, URLSessionDataDelegate, @
         // against, so the first left takes its place; its replies' validators and size are still checked.
         if !left.contains(where: isUsable) { checked.insert(left[0].name) }
         return true
+    }
+
+    /// Whether a reply carries the validator sent as If-Range unchanged; nil when it has none of that
+    /// kind. Stricter than `sameFile`: this is the server the validator came from, so another ETag
+    /// means another version even when Last-Modified is the same.
+    private func validatorMatches(_ http: HTTPURLResponse) -> Bool? {
+        if let etag { return http.value(forHTTPHeaderField: "ETag").map { $0 == etag } }
+        if let lastModified { return http.value(forHTTPHeaderField: "Last-Modified").map { $0 == lastModified } }
+        return nil
     }
 
     /// Whether a reply from another network is for the version of the file the download started with.
