@@ -44,6 +44,8 @@ nonisolated final class RangeServer: URLProtocol, @unchecked Sendable {
         /// The task identifier of every request, in order. Each session numbers its tasks from 1.
         var taskIDs: [Int?] = []
         var requests: [(start: Int64, status: Int, at: Date)] = []
+        /// When each accepted request ended, freeing its connection.
+        var ended: [Date] = []
         var active = 0
         var maxActive = 0
 
@@ -178,7 +180,12 @@ nonisolated final class RangeServer: URLProtocol, @unchecked Sendable {
             defer { stopped = true }
             return !stopped
         }
-        if first, let host { host.lock.withLock { host.active -= 1 } }
+        if first, let host {
+            host.lock.withLock {
+                host.active -= 1
+                host.ended.append(Date())
+            }
+        }
     }
 
     override func stopLoading() { finish() }
@@ -271,9 +278,11 @@ struct SegmentedDownloaderTests {
         try result.get()
         let tries = host.lock.withLock { host.requests.filter { $0.start == third }.map(\.at) }
         try #require(tries.count == 4)
-        // Sent again as soon as a connection freed up; refused again, it waits out the 3 s Retry-After
-        // every time after, until the server takes it.
-        #expect(tries[1].timeIntervalSince(tries[0]) < 2.5)
+        // Sent again as soon as a connection freed up, however long that part took on this machine;
+        // refused again, it waits out the 3 s Retry-After every time after, until the server takes it.
+        let freed = try #require(host.lock.withLock { host.ended.filter { $0 >= tries[0] }.min() })
+        #expect(tries[1] >= freed)
+        #expect(tries[1].timeIntervalSince(freed) < 1)
         #expect(tries[2].timeIntervalSince(tries[1]) >= 2.9)
         #expect(tries[3].timeIntervalSince(tries[2]) >= 2.9)
         // Only the first refusal set the limit: the two connections it found open.
