@@ -1,5 +1,11 @@
 # haul
 
+## 1.10.0
+
+### Minor Changes
+
+- ffc89d4: Haul now asks before quitting while a download or extraction is in progress; turn it off in Settings
+
 ## 1.9.3
 
 ### Patch Changes
