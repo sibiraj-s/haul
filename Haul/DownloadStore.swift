@@ -13,6 +13,9 @@ final class DownloadStore {
     var filter: SidebarFilter = .all
     var query = ""
     var showAdd = false
+    /// The Add window (see `AddWindow`) is the key window, so menu commands shouldn't act on the
+    /// list's selection.
+    var addWindowKey = false
     /// Download whose name the inspector should start editing.
     var renaming: UUID?
     /// Download shown in the Update Link panel.
@@ -720,7 +723,7 @@ final class DownloadStore {
     func showMainWindow() {
         DockIcon.show()
         NSApp.activate()
-        if let window = NSApp.windows.first(where: { $0.identifier?.rawValue.hasPrefix("main") == true }) {
+        if let window = NSApp.windows.first(where: \.isHaulMainWindow) {
             window.makeKeyAndOrderFront(nil)
         } else {
             openMainWindow?()
@@ -728,16 +731,31 @@ final class DownloadStore {
     }
 
     func requestAdd() {
+        if AddWindow.shared.isOpen { return AddWindow.shared.show() }
         showAdd = true
         showMainWindow()
     }
 
-    /// Opens the Add panel with `links` filled in, for the user to confirm.
+    /// An Add form (the panel over the main window, or the Add window) went away.
+    func addFormClosed() {
+        showAdd = false
+        // Cookies for links that weren't added shouldn't linger.
+        browserContexts = [:]
+    }
+
+    /// Opens the Add panel with `links` filled in, for the user to confirm: in a window of its
+    /// own, so a link from another app doesn't bring up the whole list. When the panel is
+    /// already open over the main window, the links join it there instead: only one Add form
+    /// is open at a time, as either one's Cancel drops the browser cookies of every waiting link.
     func requestAdd(_ links: [URL], browser: BrowserContext? = nil) {
         if let browser { for link in links { browserContexts[link] = browser } }
         incomingLinks += links
-        updatingLink = nil
-        requestAdd()
+        if showAdd {
+            updatingLink = nil
+            showMainWindow()
+        } else {
+            AddWindow.shared.show()
+        }
     }
 
     // MARK: - Engine lifecycle
@@ -1502,4 +1520,9 @@ private final class OverhangView: NSView {
         }
         return super.hitTest(point)
     }
+}
+
+extension NSWindow {
+    /// The window of the "main" scene: SwiftUI names it "main" or "main-AppWindow-1".
+    var isHaulMainWindow: Bool { identifier?.rawValue.hasPrefix("main") == true }
 }

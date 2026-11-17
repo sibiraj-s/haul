@@ -263,7 +263,7 @@ private struct HeaderBar: View {
             .frame(height: 28)
             .capsuleControl()
 
-            iconButton("plus", help: "Add Download (⌘N)", weight: .medium) { store.showAdd = true }
+            iconButton("plus", help: "Add Download (⌘N)", weight: .medium) { store.requestAdd() }
 
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass")

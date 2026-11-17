@@ -33,12 +33,16 @@ struct HaulApp: App {
         }
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 1180, height: 720)
+        // haul:// links open the Add window (see AppDelegate). SwiftUI would otherwise bring this
+        // window to the front for every link, or open it if it's closed.
+        .handlesExternalEvents(matching: [])
         .commands { HaulCommands(store: store) }
 
         Window("Keyboard Shortcuts", id: "shortcuts") {
             ShortcutsView()
         }
         .windowResizability(.contentSize)
+        .handlesExternalEvents(matching: [])
 
         MenuBarExtra(isInserted: $settings.menuBar) {
             MenuBarPopover()
@@ -122,7 +126,7 @@ private struct SelectionCommands: View {
     let store: DownloadStore
 
     var body: some View {
-        let d = store.showAdd || store.updatingLink != nil ? nil : store.selected
+        let d = store.showAdd || store.addWindowKey || store.updatingLink != nil ? nil : store.selected
         let done = d?.status == .completed
         Button("Open") { d.map(store.open) }
             .keyboardShortcut("o")
@@ -210,6 +214,32 @@ private struct CommandLineToolButton: View {
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var confirmingQuit = false
+    /// Until the first haul:// link, the main window first being on screen, or a few seconds
+    /// after launch: a link that comes in first is what Haul was launched for. It comes before
+    /// `applicationDidFinishLaunching` when there are no windows to restore, and after once
+    /// they're restored.
+    private var launching = true
+    private var launchObserver: NSObjectProtocol?
+
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        OriginApp.track()
+        launchObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.didChangeOcclusionStateNotification, object: nil, queue: .main
+        ) { [weak self] note in
+            MainActor.assumeIsolated {
+                guard let window = note.object as? NSWindow, window.isHaulMainWindow, window.occlusionState.contains(.visible) else {
+                    return
+                }
+                self?.endLaunch()
+            }
+        }
+    }
+
+    private func endLaunch() {
+        launching = false
+        launchObserver.map(NotificationCenter.default.removeObserver)
+        launchObserver = nil
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         AppSettings.shared.applyAppearance()
@@ -226,14 +256,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         RemoteServer.shared.update()
         DockIcon.observeWindows()
         MenuBarContextMenu.install()
+        // Launched from the Dock or Finder rather than for a link (or with windows to restore,
+        // which this can't tell apart).
+        if notification.userInfo?[NSApplication.launchIsDefaultUserInfoKey] as? Bool == true { endLaunch() }
+        // A link much later wasn't what Haul was launched for, even if the window never showed
+        // (restored on another Space, or Haul started hidden at login).
+        DispatchQueue.main.asyncAfter(deadline: .now() + 10) { self.endLaunch() }
+        // An Add panel left open over the main window goes with it, so a later link gets the
+        // Add window rather than bringing the whole list back.
+        NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: nil, queue: .main) { note in
+            MainActor.assumeIsolated {
+                let store = DownloadStore.shared
+                guard (note.object as? NSWindow)?.isHaulMainWindow == true, store.showAdd else { return }
+                store.addFormClosed()
+            }
+        }
     }
 
     /// haul://add links from other apps and browser extensions.
     func application(_ application: NSApplication, open urls: [URL]) {
-        for url in urls {
-            let links = IncomingLinks.links(in: url)
-            if !links.isEmpty { DownloadStore.shared.requestAdd(links, browser: IncomingLinks.browserContext(in: url)) }
+        let requests = urls.map { (IncomingLinks.links(in: $0), IncomingLinks.browserContext(in: $0)) }.filter { !$0.0.isEmpty }
+        // Haul was launched to add these links: only the Add window comes up. The main window
+        // has been ordered in (opened or restored) but hasn't reached the screen yet, so it's
+        // hidden without being seen. Hidden rather than closed: it's still open as far as
+        // SwiftUI and window restoration go, so Show, the Dock icon and the next launch bring it back.
+        if launching && !requests.isEmpty {
+            endLaunch()
+            for window in NSApp.windows
+            where window.isHaulMainWindow && !window.isMiniaturized && !window.occlusionState.contains(.visible) {
+                window.orderOut(nil)
+            }
         }
+        for (links, browser) in requests { DownloadStore.shared.requestAdd(links, browser: browser) }
     }
 
     /// Keep running in the menu bar after the window closes.
@@ -288,6 +342,9 @@ enum DockIcon {
         let policy: NSApplication.ActivationPolicy =
             settings.menuBar && settings.hideDockWhenClosed && !windowOpen ? .accessory : .regular
         guard app.activationPolicy() != policy else { return }
+        // Leaving the Dock takes the focus away, so wait for the Add window to close (it closes
+        // with a window notification too). Haul launched for a link starts with the Dock icon.
+        if policy == .accessory && AddWindow.shared.isOpen { return }
         app.setActivationPolicy(policy)
         // Otherwise Haul stays frontmost with its menus showing and no window to type into.
         if policy == .accessory && app.isActive { app.hide(nil) }

@@ -1,8 +1,15 @@
 import SwiftUI
 
-/// The in-window "Add Download" panel that drops down over a dimmed window.
+/// The "Add Download" panel: dropped down over the dimmed main window, or `floating` in a
+/// window of its own for links sent from another app (see `AddWindow`).
 struct AddDownloadPanel: View {
+    static let width: CGFloat = 440
+
+    var floating = false
     @Environment(DownloadStore.self) private var store
+    @Environment(\.openWindow) private var openWindow
+    /// Waiting for the Add window to become key to show the address's start (see `showAddressStart`).
+    @State private var pendingAddressStart: Bool?
     @State private var address = ""
     /// What the server said about each batch link, filled in as the answers arrive.
     @State private var batchInfo: [URL: Probe.Info] = [:]
@@ -77,19 +84,28 @@ struct AddDownloadPanel: View {
     private var canConfirm: Bool { isBatch ? !newLinks.isEmpty : parsedURL != nil && !blockedWebPage }
 
     var body: some View {
-        ZStack(alignment: .top) {
-            Color.black.opacity(0.12)
-                .contentShape(Rectangle())
-                .onTapGesture {}
-            panel
-                .padding(.top, 64)
-                .scaleEffect(appeared ? 1 : 0.98)
-                .offset(y: appeared ? 0 : -10)
-                .opacity(appeared ? 1 : 0)
+        Group {
+            if floating {
+                panel
+            } else {
+                ZStack(alignment: .top) {
+                    Color.black.opacity(0.12)
+                        .contentShape(Rectangle())
+                        .onTapGesture {}
+                    panel
+                        .padding(.top, 64)
+                        .scaleEffect(appeared ? 1 : 0.98)
+                        .offset(y: appeared ? 0 : -10)
+                        .opacity(appeared ? 1 : 0)
+                }
+                .transition(.opacity)
+            }
         }
-        .transition(.opacity)
         .onAppear {
-            withAnimation(.easeOut(duration: 0.18)) { appeared = true }
+            if !floating { withAnimation(.easeOut(duration: 0.18)) { appeared = true } }
+            // For Show, when no view in a scene has set it: Haul may have started with no main
+            // window (closed at quit) and without the menu bar icon.
+            if store.openMainWindow == nil { store.openMainWindow = { [openWindow] in openWindow(id: "main") } }
             // Links sent from another app come first; otherwise pre-fill copied links, as long
             // as the clipboard holds nothing but links.
             if !store.incomingLinks.isEmpty {
@@ -106,6 +122,11 @@ struct AddDownloadPanel: View {
                 }
             }
             addressFocused = true
+        }
+        .onChange(of: store.addWindowKey) { _, key in
+            guard key, let selectingAll = pendingAddressStart else { return }
+            pendingAddressStart = nil
+            showAddressStart(selectingAll: selectingAll)
         }
         .onChange(of: store.incomingLinks) { _, incoming in
             // More links sent while the panel is open join the ones already entered.
@@ -213,10 +234,8 @@ struct AddDownloadPanel: View {
         .padding(.horizontal, 18)
         .padding(.top, 18)
         .padding(.bottom, 16)
-        .frame(width: 440)
-        .background(RoundedRectangle(cornerRadius: 16).fill(Theme.win))
-        .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Theme.ctlB, lineWidth: 0.5))
-        .shadow(color: .black.opacity(0.26), radius: 40, y: 30)
+        .frame(width: Self.width)
+        .modifier(PanelChrome(enabled: !floating))
     }
 
     /// The name the download will be saved under, as far as we know yet.
@@ -250,8 +269,10 @@ struct AddDownloadPanel: View {
         } else if let url = parsedURL, let existing = store.existing(url: url) {
             notice("This link is already in your list (\(existing.status.label.lowercased())).") {
                 PillButton(title: "Show") {
-                    close()
+                    // The main window first, so Haul isn't taken out of the Dock and hidden in
+                    // between when the Add window closes.
                     store.reveal(existing.id)
+                    close(returningFocus: false)
                 }
             }
         } else if case .ok = probe, !blockedWebPage, let name = fileName, let file = store.existingFile(named: name, in: folder) {
@@ -367,7 +388,14 @@ struct AddDownloadPanel: View {
     /// than the tail of the last one. The cursor stays at the end, so a further paste goes after
     /// the text; text filled in from the clipboard is selected instead, so a paste replaces it.
     /// Deferred until the field has taken the new text.
+    ///
+    /// The Add window comes up only once it has its size, and the key window until then is
+    /// another one, such as the main window: then it's done when the Add window becomes key.
     private func showAddressStart(selectingAll: Bool = false) {
+        if floating && !store.addWindowKey {
+            pendingAddressStart = selectingAll
+            return
+        }
         DispatchQueue.main.async {
             guard let editor = NSApp.keyWindow?.firstResponder as? NSTextView, editor.isFieldEditor else { return }
             let length = (editor.string as NSString).length
@@ -418,10 +446,9 @@ struct AddDownloadPanel: View {
         .background(RoundedRectangle(cornerRadius: 10).fill(Theme.group))
     }
 
-    private func close() {
-        store.showAdd = false
-        // Cookies for links that weren't added shouldn't linger.
-        store.browserContexts = [:]
+    private func close(returningFocus: Bool = true) {
+        if floating { return AddWindow.shared.close(returningFocus: returningFocus) }
+        store.addFormClosed()
     }
 
     private func confirm() {
@@ -447,6 +474,22 @@ struct AddDownloadPanel: View {
             url: url, probe: info, connections: connections, start: startNow ? .now : .paused, folder: folder,
             replaceExisting: replacing, extract: extracting, whenDone: whenDone)
         close()
+    }
+}
+
+/// The card the panel sits on over the main window; the Add window is its own card.
+private struct PanelChrome: ViewModifier {
+    let enabled: Bool
+
+    func body(content: Content) -> some View {
+        if enabled {
+            content
+                .background(RoundedRectangle(cornerRadius: 16).fill(Theme.win))
+                .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Theme.ctlB, lineWidth: 0.5))
+                .shadow(color: .black.opacity(0.26), radius: 40, y: 30)
+        } else {
+            content.background(Theme.win)
+        }
     }
 }
 
