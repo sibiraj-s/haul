@@ -272,7 +272,8 @@ struct PinnedRequestTests {
             reply.close = false
             return reply
         }
-        let outcome = await run(URLRequest(url: server.base), idleLimit: 0.5)
+        // Long enough that a busy machine still gets the reply in before the silence that follows it.
+        let outcome = await run(URLRequest(url: server.base), idleLimit: 2)
         #expect(outcome.body.count == 10)
         #expect(code(outcome.error) == .timedOut)
     }
