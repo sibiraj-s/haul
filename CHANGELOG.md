@@ -1,5 +1,15 @@
 # haul
 
+## 1.11.0
+
+### Minor Changes
+
+- 40c5020: Links sent from your browser, the Share menu or the command line now open a compact Add window instead of the whole app
+
+### Patch Changes
+
+- 03734dd: Fix the Safari extension and the Share menu item not showing up
+
 ## 1.10.0
 
 ### Minor Changes
