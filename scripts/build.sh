@@ -122,10 +122,33 @@ plist="$PWD/$app/Contents/Info.plist"
 [[ "$(defaults read "$plist" CFBundleShortVersionString)" == "$version" ]] || { echo "error: version mismatch" >&2; exit 1; }
 [[ "$(lipo -archs "$app/Contents/MacOS/Haul")" == "arm64" ]] || { echo "error: expected an arm64-only binary" >&2; exit 1; }
 codesign --verify --deep --strict "$app"
-if codesign -d --entitlements - --xml "$app" 2>/dev/null | grep -q get-task-allow; then
-    echo "error: debug entitlement (get-task-allow) in the release build" >&2
-    exit 1
-fi
+# Signed entitlements without whitespace, so a key and its value can be matched together. Read
+# in full: under pipefail, a grep that exits at its first match can fail the whole pipeline.
+entitlements() {
+    local xml
+    xml="$(codesign -d --entitlements - --xml "$1" 2>/dev/null)" ||
+        { echo "error: can't read the entitlements of $1" >&2; exit 1; }
+    tr -d '[:space:]' <<<"$xml"
+}
+appexes=("$app"/Contents/PlugIns/*.appex)
+[[ -e "${appexes[0]}" ]] || { echo "error: no app extensions in $app" >&2; exit 1; }
+# What the ENABLE_* build settings sign in. macOS silently ignores an app extension that isn't
+# sandboxed, so it never shows up in Safari or the Share menu.
+for code in "$app" "${appexes[@]}"; do
+    signed="$(entitlements "$code")"
+    if [[ "$signed" == *"<key>com.apple.security.get-task-allow</key>"* ]]; then
+        echo "error: debug entitlement (get-task-allow) on $(basename "$code")" >&2
+        exit 1
+    fi
+    required=(app-sandbox)
+    if [[ "$code" == "$app" ]]; then
+        required+=(network.client network.server files.downloads.read-write files.user-selected.read-write)
+    fi
+    for key in "${required[@]}"; do
+        [[ "$signed" == *"<key>com.apple.security.$key</key><true/>"* ]] ||
+            { echo "error: $(basename "$code") is missing com.apple.security.$key" >&2; exit 1; }
+    done
+done
 if [[ -n "$team" ]]; then
     # Notarization rejects code without the hardened runtime or a secure timestamp.
     sparkle="$app/Contents/Frameworks/Sparkle.framework/Versions/B"

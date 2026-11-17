@@ -335,3 +335,6 @@ $RECYCLE.BIN/
 
 # Personal code signing (see Signing.xcconfig)
 Local.xcconfig
+
+# Personal Claude Code settings
+.claude/settings.local.json

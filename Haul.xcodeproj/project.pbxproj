@@ -80,6 +80,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
+				SafariExtension.entitlements,
 			);
 			target = 000000000000000300000000 /* SafariExtension */;
 		};
@@ -87,6 +88,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
+				ShareExtension.entitlements,
 			);
 			target = 000000000000000400000000 /* ShareExtension */;
 		};
@@ -722,6 +724,7 @@
 		000000000000000311000000 /* Debug configuration for PBXNativeTarget "SafariExtension" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = SafariExtension/SafariExtension.entitlements;
 				CURRENT_PROJECT_VERSION = "$(MARKETING_VERSION)";
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -748,6 +751,7 @@
 		000000000000000312000000 /* Release configuration for PBXNativeTarget "SafariExtension" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = SafariExtension/SafariExtension.entitlements;
 				CURRENT_PROJECT_VERSION = "$(MARKETING_VERSION)";
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -774,6 +778,7 @@
 		000000000000000411000000 /* Debug configuration for PBXNativeTarget "ShareExtension" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = ShareExtension/ShareExtension.entitlements;
 				CURRENT_PROJECT_VERSION = "$(MARKETING_VERSION)";
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -800,6 +805,7 @@
 		000000000000000412000000 /* Release configuration for PBXNativeTarget "ShareExtension" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = ShareExtension/ShareExtension.entitlements;
 				CURRENT_PROJECT_VERSION = "$(MARKETING_VERSION)";
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;

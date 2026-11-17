@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Release builds sign without injected base entitlements, so a target needs this file for
+	     its ENABLE_* settings to be signed in at all. Without it the extension was unsandboxed,
+	     and macOS won't load an extension that isn't sandboxed. -->
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+</dict>
+</plist>
