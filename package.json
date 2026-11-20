@@ -9,7 +9,8 @@
     "format": "oxfmt",
     "format:check": "oxfmt --check",
     "prepare": "husky",
-    "extension": "node scripts/extension.mjs"
+    "extension": "node scripts/extension.mjs",
+    "bump": "changeset version && npm install --package-lock-only --ignore-scripts"
   },
   "devDependencies": {
     "@changesets/cli": "^3.0.3",

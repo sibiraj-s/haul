@@ -39,6 +39,8 @@ jobs:
       - id: changesets
         uses: changesets/action@v2
         with:
+          # changeset version, then the same version in package-lock.json.
+          version-script: npm run bump
           pr-title: Release haul@${{ steps.next.outputs.version }}
           commit-message: Release haul@${{ steps.next.outputs.version }}
         env:
