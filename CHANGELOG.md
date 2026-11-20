@@ -1,5 +1,11 @@
 # haul
 
+## 1.11.1
+
+### Patch Changes
+
+- 95cbb84: Fix the sidebar and toolbar getting cut off when the window is tiled narrow
+
 ## 1.11.0
 
 ### Minor Changes
