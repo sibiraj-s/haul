@@ -224,9 +224,15 @@ private struct HeaderBar: View {
                     .frame(height: 14)
             }
             .padding(.leading, 4)
-            .fixedSize()
+            .lineLimit(1)
+            .fixedSize(horizontal: false, vertical: true)
+            // Keeps its full width while the badges can still shrink to their icons, and truncates
+            // only after that, so the header never grows wider than a narrow (e.g. tiled) window.
+            .layoutPriority(1)
 
+            // Only takes what's left, so the search field stays at full width whenever there's room.
             WindowDragArea(window: window)
+                .layoutPriority(-1)
 
             if !store.allNetworksSpeeds.isEmpty {
                 AllNetworksBadge()
@@ -274,7 +280,8 @@ private struct HeaderBar: View {
                     .focused($searchFocused)
             }
             .padding(.horizontal, 10)
-            .frame(width: 180, height: 28)
+            .frame(minWidth: 110, maxWidth: 180)
+            .frame(height: 28)
             .capsuleControl()
             .background {
                 Button("") { searchFocused = true }.keyboardShortcut("f").hidden()
