@@ -556,7 +556,41 @@ final class DownloadStore {
     }
 
     /// Asks first (unless turned off in Settings), then removes.
+    ///
+    /// The alert comes up once the click, menu choice or shortcut that asked for it has
+    /// finished, not inside it: run from inside the SwiftUI action, it showed up on some Macs
+    /// without its Remove button.
     func requestRemove(_ id: UUID) {
+        ask("remove \(id)") { self.askToRemove(id) }
+    }
+
+    /// Like `requestRemove`, asks once the action that called for it has finished.
+    func requestClearCompleted() {
+        ask("clear completed") { self.askToClearCompleted() }
+    }
+
+    /// Requests whose alert is waiting to come up or is showing.
+    @ObservationIgnored private var pendingAlerts: Set<String> = []
+
+    /// Runs `question` once the current action has finished. A repeat of the same request
+    /// before it's answered (a double click, a held-down shortcut) is dropped, not asked again.
+    /// With confirmation off there's no alert to wait for, so it runs right away.
+    ///
+    /// A run loop block rather than `DispatchQueue.main.async`: an alert run from inside a
+    /// main-queue block holds up the main queue, and with it main-actor work such as finished
+    /// downloads, until it's closed. Common modes, so it isn't held back by a run loop mode
+    /// other than the default.
+    private func ask(_ key: String, _ question: @escaping () -> Void) {
+        guard settings.confirmRemove else { return question() }
+        guard pendingAlerts.insert(key).inserted else { return }
+        CFRunLoopPerformBlock(CFRunLoopGetMain(), CFRunLoopMode.commonModes.rawValue) {
+            question()
+            self.pendingAlerts.remove(key)
+        }
+        CFRunLoopWakeUp(CFRunLoopGetMain())
+    }
+
+    private func askToRemove(_ id: UUID) {
         guard let d = items.first(where: { $0.id == id }) else { return }
         if d.status == .completed { _ = destinationFolder(for: d) }  // makes sure a picked folder's sandbox access is active
         let hasFile = d.status == .completed && d.fileURL.map { FileManager.default.fileExists(atPath: $0.path) } == true
@@ -577,7 +611,7 @@ final class DownloadStore {
         remove(id, trashFile: trash)
     }
 
-    func requestClearCompleted() {
+    private func askToClearCompleted() {
         let n = count(.completed)
         guard n > 0 else { return }
         if confirm(
@@ -635,26 +669,39 @@ final class DownloadStore {
         alert.informativeText = detail
         alert.addButton(withTitle: button).hasDestructiveAction = destructive
         alert.addButton(withTitle: "Cancel")
-        alert.showsSuppressionButton = true
-        alert.suppressionButton?.title = "Don't ask again"
         let option = checkbox.map { NSButton(checkboxWithTitle: $0, target: nil, action: nil) }
+        let dontAsk: NSButton?
         if let option {
+            // With an option, "Don't ask again" goes in the accessory view beside it rather than
+            // being NSAlert's own, so the two line up with each other whatever NSAlert's margins.
             option.state = checked ? .on : .off
-            option.sizeToFit()
-            let container = OverhangView(frame: option.frame)
-            container.addSubview(option)
-            alert.accessoryView = container
-            // NSAlert insets the accessory view; line the checkbox up with "Don't ask again".
-            alert.layout()
-            if let suppression = alert.suppressionButton {
-                let dx = suppression.convert(suppression.bounds, to: nil).minX - option.convert(option.bounds, to: nil).minX
-                option.frame.origin.x += dx
-            }
+            let suppression = NSButton(checkboxWithTitle: "Don't ask again", target: nil, action: nil)
+            alert.accessoryView = Self.checkboxStack([option, suppression])
+            dontAsk = suppression
+        } else {
+            alert.showsSuppressionButton = true
+            alert.suppressionButton?.title = "Don't ask again"
+            dontAsk = alert.suppressionButton
         }
         NSApp.activate()
         let confirmed = alert.runModal() == .alertFirstButtonReturn
-        if confirmed && alert.suppressionButton?.state == .on { settings[keyPath: asking] = false }
+        if confirmed && dontAsk?.state == .on { settings[keyPath: asking] = false }
         return (confirmed, confirmed && option?.state == .on)
+    }
+
+    /// Checkboxes for an alert's accessory view, sized up front, as NSAlert lays out accessory
+    /// views by frame. NSAlert centers the view in a 228pt-wide area and puts its own
+    /// "Don't ask again" 6pt in from it, 16pt from the next control; filling the area with the
+    /// same spacing makes them look like NSAlert's own.
+    private static func checkboxStack(_ boxes: [NSButton]) -> NSView {
+        let stack = NSStackView(views: boxes)
+        stack.orientation = .vertical
+        stack.alignment = .leading
+        stack.spacing = 16
+        stack.edgeInsets = NSEdgeInsets(top: 0, left: 6, bottom: 0, right: 0)
+        let fit = stack.fittingSize
+        stack.setFrameSize(NSSize(width: max(228, fit.width), height: fit.height))
+        return stack
     }
 
     func clearCompleted() {
@@ -1508,17 +1555,6 @@ struct DockTileView: View {
                 .padding(.bottom, 14)
         }
         .frame(width: 128, height: 128)
-    }
-}
-
-/// Lets a subview that sticks out past this view's bounds still take clicks.
-private final class OverhangView: NSView {
-    override func hitTest(_ point: NSPoint) -> NSView? {
-        let local = convert(point, from: superview)
-        for sub in subviews.reversed() {
-            if let hit = sub.hitTest(local) { return hit }
-        }
-        return super.hitTest(point)
     }
 }
 
