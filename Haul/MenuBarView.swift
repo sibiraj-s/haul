@@ -10,10 +10,32 @@ struct MenuBarLabel: View {
         HStack(spacing: 5) {
             Image(nsImage: Self.ringImage(progress: active ? store.overallProgress : 0))
             if active {
-                Text("\(formatBytes(store.totalSpeed))/s").monospacedDigit()
+                Text(Self.speedText(store.totalSpeed)).monospacedDigit()
             }
         }
         .onAppear { store.openMainWindow = { openWindow(id: "main") } }
+    }
+
+    /// Speed padded at the end to the width of "999.9 MB/s", so the label keeps one width as the
+    /// speed changes and doesn't shift the menu bar items beside it. A `MenuBarExtra` label ignores
+    /// frame modifiers, so the string itself has to hold the width.
+    static func speedText(_ bytesPerSecond: Double) -> String {
+        let units = ["KB", "MB", "GB", "TB"]
+        var value = max(0, bytesPerSecond / 1024)
+        var unit = 0
+        // Step up before a value would need another digit ("1000 KB", "1000.0 MB").
+        while value >= (unit == 0 ? 999.5 : 999.95), unit < units.count - 1 {
+            value /= 1024
+            unit += 1
+        }
+        // KB as a whole number, larger units with one decimal, as elsewhere in the app.
+        let number = String(format: unit == 0 ? "%.0f" : "%.1f", value)
+        // Figure spaces are as wide as a digit, a punctuation space as wide as the decimal point.
+        let digits = number.filter(\.isNumber).count
+        let padding =
+            String(repeating: "\u{2007}", count: max(0, 4 - digits))
+            + (number.contains(".") ? "" : "\u{2008}")
+        return "\(number) \(units[unit])/s\(padding)"
     }
 
     static func ringImage(progress: Double) -> NSImage {
