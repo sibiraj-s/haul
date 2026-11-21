@@ -1,5 +1,11 @@
 # haul
 
+## 1.11.2
+
+### Patch Changes
+
+- 0c616c8: Fix menu bar items shifting as the download speed in the menu bar changes
+
 ## 1.11.1
 
 ### Patch Changes
