@@ -11,7 +11,7 @@ struct MenuBarLabel: View {
         let speed = Self.speedText(store.totalSpeed)
         // The speed is drawn into the image, so VoiceOver needs it spelled out. It goes on the
         // image too, in case the status item doesn't carry over the SwiftUI label.
-        let description = active ? "\(AppInfo.name), downloading at \(speed)" : AppInfo.name
+        let description = active ? "\(AppInfo.name), downloading at \(Self.spokenSpeed(store.totalSpeed))" : AppInfo.name
         Image(nsImage: Self.described(active ? Self.labelImage(ring: ring, speed: speed) : ring, as: description))
             .accessibilityLabel(description)
             .onAppear { store.openMainWindow = { openWindow(id: "main") } }
@@ -24,15 +24,27 @@ struct MenuBarLabel: View {
 
     /// Speed in the units used elsewhere in the app: KB as a whole number, larger units with one decimal.
     static func speedText(_ bytesPerSecond: Double) -> String {
-        let units = ["KB", "MB", "GB", "TB"]
+        let (number, unit) = scaledSpeed(bytesPerSecond)
+        return "\(number) \(["KB", "MB", "GB", "TB"][unit])/s"
+    }
+
+    /// `speedText` with the units spelled out for VoiceOver, which reads "MB/s" letter by letter.
+    static func spokenSpeed(_ bytesPerSecond: Double) -> String {
+        let (number, unit) = scaledSpeed(bytesPerSecond)
+        let name = ["kilobyte", "megabyte", "gigabyte", "terabyte"][unit]
+        return "\(number) \(name)\(number == "1" ? "" : "s") per second"
+    }
+
+    /// The speed as a number in the largest unit that keeps it under 1000, and that unit's index.
+    private static func scaledSpeed(_ bytesPerSecond: Double) -> (number: String, unit: Int) {
         var value = max(0, bytesPerSecond / 1024)
         var unit = 0
         // Step up before a value would need another digit ("1000 KB", "1000.0 MB").
-        while value >= (unit == 0 ? 999.5 : 999.95), unit < units.count - 1 {
+        while value >= (unit == 0 ? 999.5 : 999.95), unit < 3 {
             value /= 1024
             unit += 1
         }
-        return String(format: unit == 0 ? "%.0f %@/s" : "%.1f %@/s", value, units[unit])
+        return (String(format: unit == 0 ? "%.0f" : "%.1f", value), unit)
     }
 
     private static let speedFont = NSFont.monospacedDigitSystemFont(
