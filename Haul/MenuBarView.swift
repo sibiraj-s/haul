@@ -7,18 +7,22 @@ struct MenuBarLabel: View {
 
     var body: some View {
         let active = !store.downloading.isEmpty
-        HStack(spacing: 5) {
-            Image(nsImage: Self.ringImage(progress: active ? store.overallProgress : 0))
-            if active {
-                Text(Self.speedText(store.totalSpeed)).monospacedDigit()
-            }
-        }
-        .onAppear { store.openMainWindow = { openWindow(id: "main") } }
+        let ring = Self.ringImage(progress: active ? store.overallProgress : 0)
+        let speed = Self.speedText(store.totalSpeed)
+        // The speed is drawn into the image, so VoiceOver needs it spelled out. It goes on the
+        // image too, in case the status item doesn't carry over the SwiftUI label.
+        let description = active ? "\(AppInfo.name), downloading at \(speed)" : AppInfo.name
+        Image(nsImage: Self.described(active ? Self.labelImage(ring: ring, speed: speed) : ring, as: description))
+            .accessibilityLabel(description)
+            .onAppear { store.openMainWindow = { openWindow(id: "main") } }
     }
 
-    /// Speed padded at the end to the width of "999.9 MB/s", so the label keeps one width as the
-    /// speed changes and doesn't shift the menu bar items beside it. A `MenuBarExtra` label ignores
-    /// frame modifiers, so the string itself has to hold the width.
+    private static func described(_ image: NSImage, as description: String) -> NSImage {
+        image.accessibilityDescription = description
+        return image
+    }
+
+    /// Speed in the units used elsewhere in the app: KB as a whole number, larger units with one decimal.
     static func speedText(_ bytesPerSecond: Double) -> String {
         let units = ["KB", "MB", "GB", "TB"]
         var value = max(0, bytesPerSecond / 1024)
@@ -28,14 +32,47 @@ struct MenuBarLabel: View {
             value /= 1024
             unit += 1
         }
-        // KB as a whole number, larger units with one decimal, as elsewhere in the app.
-        let number = String(format: unit == 0 ? "%.0f" : "%.1f", value)
-        // Figure spaces are as wide as a digit, a punctuation space as wide as the decimal point.
-        let digits = number.filter(\.isNumber).count
-        let padding =
-            String(repeating: "\u{2007}", count: max(0, 4 - digits))
-            + (number.contains(".") ? "" : "\u{2008}")
-        return "\(number) \(units[unit])/s\(padding)"
+        return String(format: unit == 0 ? "%.0f %@/s" : "%.1f %@/s", value, units[unit])
+    }
+
+    private static let speedFont = NSFont.monospacedDigitSystemFont(
+        ofSize: NSFont.menuBarFont(ofSize: 0).pointSize, weight: .regular)
+
+    private static let speedAttributes: [NSAttributedString.Key: Any] = [
+        .font: speedFont,
+        .foregroundColor: NSColor.black,
+    ]
+
+    /// Wide enough for the longest speed in any unit.
+    private static let speedWidth =
+        ["KB", "MB", "GB", "TB"]
+        .map { NSAttributedString(string: "999.9 \($0)/s", attributes: speedAttributes).size().width }
+        .max() ?? 0
+
+    /// The ring with the speed beside it, drawn into one image of fixed width. As text, the label
+    /// is a status item title: its width follows the digits (frame and digit-width modifiers are
+    /// dropped), which shifts the menu bar items to its left whenever the speed changes.
+    static func labelImage(ring: NSImage, speed: String) -> NSImage {
+        let text = NSAttributedString(string: speed, attributes: speedAttributes)
+        let textSize = text.size()
+        let gap: CGFloat = 5
+        let height = max(ring.size.height, ceil(textSize.height))
+        // Never narrower than the text itself, should a speed ever pass "999.9 TB/s".
+        let size = NSSize(width: ring.size.width + gap + ceil(max(speedWidth, textSize.width)), height: height)
+        let image = NSImage(size: size, flipped: false) { rect in
+            ring.draw(
+                in: NSRect(
+                    x: 0, y: (rect.height - ring.size.height) / 2,
+                    width: ring.size.width, height: ring.size.height))
+            // Line up the middle of the digits with the middle of the arrow, which sits 0.4pt above
+            // the ring's center. Centering the whole line box leaves the digits low.
+            let baseline = rect.midY + 0.4 - speedFont.capHeight / 2
+            // Without .usesLineFragmentOrigin, the rect's origin is the baseline.
+            text.draw(with: NSRect(x: ring.size.width + gap, y: baseline, width: textSize.width, height: 0))
+            return true
+        }
+        image.isTemplate = true
+        return image
     }
 
     static func ringImage(progress: Double) -> NSImage {
