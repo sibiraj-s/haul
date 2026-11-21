@@ -1,5 +1,12 @@
 # haul
 
+## 1.11.3
+
+### Patch Changes
+
+- f37e865: Fix the Remove button and Trash option missing from the remove confirmation on some Macs
+- a241494: Fix VoiceOver spelling out the download speed in the menu bar letter by letter
+
 ## 1.11.2
 
 ### Patch Changes
