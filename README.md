@@ -23,7 +23,7 @@ A native download manager for macOS, built with SwiftUI.
 ## Adding downloads
 
 - **Chrome and Firefox** (also Brave, Edge, Vivaldi and Arc): the [Chrome](https://chromewebstore.google.com/detail/dhpcpomodjoajhnpnbnobdngljjilfge) or [Firefox](https://addons.mozilla.org/firefox/addon/haul-downloader/) extension hands the browser's downloads to Haul and adds Download with Haul to the menu for links. Haul registers itself with the browsers when it launches.
-- **Safari**: the extension that comes with the app adds Download with Haul to the menu for links, and downloads them signed in with Safari's cookies. Turn it on in Safari → Settings → Extensions. Safari doesn't let extensions take over its downloads, so downloads you start in Safari stay in Safari.
+- **Safari**: the extension that comes with the app adds Download with Haul to the menu for links, and downloads them signed in with Safari's cookies. Turn it on in Safari → Settings → Extensions.
 - **Share menu**: Haul appears for web links (turn it on from the Share menu's Edit Extensions).
 - **Services**: Download with Haul, from any app.
 - **URL scheme**: `haul://add?url=<encoded link>`
@@ -37,3 +37,7 @@ Requires macOS 26 or later on Apple Silicon.
 2. Open it and drag Haul to Applications.
 
 Haul checks for updates once a day and installs them from within the app.
+
+## Known limitations
+
+- Safari doesn't let extensions take over its downloads, so downloads you start in Safari stay in Safari. The Chrome and Firefox extensions hand downloads to Haul by watching the browser's downloads (the `downloads` API) and, in Firefox, by stopping file responses before they arrive (blocking `webRequest`). Safari extensions get no `downloads` API, and their `webRequest` can only observe requests, not block them, so there's no point where Haul can step in. Use Download with Haul from the menu for links instead.
