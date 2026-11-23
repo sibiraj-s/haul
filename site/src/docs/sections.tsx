@@ -129,7 +129,11 @@ export const sections: { id: string; title: string; body: ReactNode }[] = [
         </Ul>
         <P>
           Links from other apps, the browser extension and the <Code>haul</Code> command all open this panel with the
-          links filled in. Nothing downloads until you confirm it there.
+          links filled in. Nothing downloads until you confirm it there, except links added through{' '}
+          <a href="#remote" className="text-accent hover:underline">
+            Remote downloads
+          </a>
+          .
         </P>
       </>
     ),
@@ -145,7 +149,7 @@ export const sections: { id: string; title: string; body: ReactNode }[] = [
         </P>
         <Ol>
           <li>
-            Open <Ui>Haul → Settings → General</Ui> and click <Ui>Turn On in Safari…</Ui>, or go to{' '}
+            Open <Ui>Haul → Settings → Extensions</Ui> and click <Ui>Turn On in Safari…</Ui>, or go to{' '}
             <Ui>Safari → Settings → Extensions</Ui>.
           </li>
           <li>Turn on Haul.</li>
@@ -172,8 +176,9 @@ export const sections: { id: string; title: string; body: ReactNode }[] = [
         <Ol>
           <li>Open Haul once, so it can tell your browsers where to find it.</li>
           <li>
-            Install it from the <A href={links.chromeExtension}>Chrome Web Store</A> (also for Brave, Edge, Vivaldi and
-            Arc) or from <A href={links.firefoxExtension}>Firefox Add-ons</A>.
+            Install it from <Ui>Haul → Settings → Extensions</Ui>, the{' '}
+            <A href={links.chromeExtension}>Chrome Web Store</A> (also for Brave, Edge, Vivaldi and Arc) or{' '}
+            <A href={links.firefoxExtension}>Firefox Add-ons</A>.
           </li>
           <li>
             In Firefox, allow the extension on all sites in <Ui>Add-ons → Haul → Permissions</Ui>, so it can take
@@ -240,6 +245,58 @@ haul --version`}</Pre>
     ),
   },
   {
+    id: 'remote',
+    title: 'Remote downloads',
+    body: (
+      <>
+        <P>
+          Turn on <Ui>Add downloads remotely</Ui> in <Ui>Haul → Settings → Remote</Ui> to add downloads from your phone,
+          another computer or a script. Haul serves a page to paste links into, and an API for curl and scripts.
+          Downloads added this way skip the Add panel and go into the queue, saving to the default folder.
+        </P>
+        <Table
+          rows={[
+            [
+              'Available to',
+              <>
+                <Ui>This Mac</Ui> only, or <Ui>Network</Ui> for other devices on your network. Settings shows the
+                address to open on them.
+              </>,
+            ],
+            ['Port', '7878 unless you change it.'],
+            ['Password', 'Needed to use the page and the API, and kept in the Keychain. New makes a random one.'],
+          ]}
+        />
+        <P>
+          <Ui>Copy curl</Ui> copies a command that adds a link. Any user name works, so give just the password:
+        </P>
+        <Pre>{`curl -u :password -d 'https://example.com/file.zip' http://localhost:7878/add`}</Pre>
+        <P>
+          The body can be any text with links in it, or JSON like <Code>{'{"urls": [...]}'}</Code> sent with{' '}
+          <Code>Content-Type: application/json</Code>. The password also works as a bearer token.
+        </P>
+        <Table
+          rows={[
+            [<Code>POST /add</Code>, 'Adds the links in the body.'],
+            [<Code>GET /downloads</Code>, 'Lists downloads with their status, progress and speed.'],
+            [<Code>POST /downloads/&lt;id&gt;/pause</Code>, 'Pauses a download.'],
+            [<Code>POST /downloads/&lt;id&gt;/resume</Code>, 'Resumes it.'],
+            [
+              <Code>DELETE /downloads/&lt;id&gt;</Code>,
+              'Removes it from the list. A finished file stays where it was saved.',
+            ],
+          ]}
+        />
+        <P>
+          To add downloads from anywhere, point a tunnel such as cloudflared or Tailscale at the page. On the internet,
+          anyone with the link can try to guess the password, so use a long one, and prefer a private tunnel such as
+          Tailscale or one behind a sign-in such as Cloudflare Access. After 10 wrong passwords in 10 minutes, Haul
+          stops accepting the password for 15 minutes.
+        </P>
+      </>
+    ),
+  },
+  {
     id: 'managing',
     title: 'Managing downloads',
     body: (
@@ -273,8 +330,9 @@ haul --version`}</Pre>
       <>
         <H3>General</H3>
         <P>
-          Appearance and accent colour, progress in the menu bar and on the Dock icon, opening at login, when finished
-          downloads leave the list, the Safari extension, and automatic updates.
+          Appearance and accent colour, progress in the menu bar and on the Dock icon, hiding the Dock icon when the
+          window is closed, opening at login, when finished downloads leave the list (and whether downloads whose file
+          was deleted do too), asking before removing downloads or quitting while downloading, and automatic updates.
         </P>
         <H3>Downloads</H3>
         <Table
@@ -320,10 +378,23 @@ haul --version`}</Pre>
             ],
           ]}
         />
+        <H3>Remote</H3>
+        <P>
+          Adding downloads from other devices. See{' '}
+          <a href="#remote" className="text-accent hover:underline">
+            Remote downloads
+          </a>
+          .
+        </P>
         <H3>Notifications</H3>
         <P>
           Notify when a download is added, finishes or fails (after any automatic retries), optionally only when Haul
           isn't in front.
+        </P>
+        <H3>Extensions</H3>
+        <P>
+          Turns on the Safari extension, and adds the extension to Chrome, Firefox and the other browsers you have
+          installed.
         </P>
       </>
     ),

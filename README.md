@@ -13,6 +13,7 @@ A native download manager for macOS, built with SwiftUI.
 - Multi-connection downloads that pause and resume, even across relaunches
 - A reorderable queue with a limit on simultaneous downloads
 - Speed limit, a nightly download schedule, and pausing on Personal Hotspot
+- Multi-network downloads over Wi‑Fi, Ethernet and USB tethering at once
 - The system proxy, or a custom HTTP or SOCKS5 proxy with sign-in and hosts that skip it
 - Automatic retries, and Update Link for expired downloads
 - Sorting into folders by kind, duplicate detection, and SHA-256 checksums
@@ -28,6 +29,7 @@ A native download manager for macOS, built with SwiftUI.
 - **Services**: Download with Haul, from any app.
 - **URL scheme**: `haul://add?url=<encoded link>`
 - **Command line**: `haul add <link>…` opens the links in the Add panel. Install it from Haul → Install Command Line Tool….
+- **Remote**: a page to paste links into from other devices, and an API for curl and scripts. Turn it on in Settings → Remote.
 
 ## Install
 
