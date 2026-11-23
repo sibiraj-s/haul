@@ -26,20 +26,9 @@ export const ConnectionsIcon = (p: IconProps) => (
     <path d="M4 7h11M4 12h16M4 17h13M16 4l3 3-3 3" />
   </Glyph>
 )
-export const PauseIcon = (p: IconProps) => (
-  <Glyph {...p}>
-    <path d="M9 6v12M15 6v12" />
-  </Glyph>
-)
 export const QueueIcon = (p: IconProps) => (
   <Glyph {...p}>
     <path d="M4 7h16M4 12h16M4 17h10" />
-  </Glyph>
-)
-export const MenuBarIcon = (p: IconProps) => (
-  <Glyph {...p}>
-    <rect x="3" y="4" width="18" height="16" rx="3" />
-    <path d="M3 9h18" />
   </Glyph>
 )
 export const ScheduleIcon = (p: IconProps) => (
@@ -48,10 +37,22 @@ export const ScheduleIcon = (p: IconProps) => (
     <path d="M12 9v4l2.5 2M9.5 2.5h5" />
   </Glyph>
 )
-export const LaptopIcon = (p: IconProps) => (
+export const BrowserIcon = (p: IconProps) => (
   <Glyph {...p}>
-    <rect x="4.5" y="5" width="15" height="10.5" rx="1.5" />
-    <path d="M2.5 18.5h19" />
+    <rect x="3" y="4.5" width="18" height="15" rx="2.5" />
+    <path d="M3 9h18M12 11.5v5M9.5 14l2.5 2.5 2.5-2.5" />
+  </Glyph>
+)
+export const RemoteIcon = (p: IconProps) => (
+  <Glyph {...p}>
+    <rect x="4" y="3" width="9" height="18" rx="2" />
+    <path d="M8 17.5h1M16.5 9a4 4 0 0 1 0 6M19 6.5a8 8 0 0 1 0 11" />
+  </Glyph>
+)
+export const LockIcon = (p: IconProps) => (
+  <Glyph {...p}>
+    <rect x="5" y="10.5" width="14" height="10" rx="2" />
+    <path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" />
   </Glyph>
 )
 export const HeartIcon = (p: IconProps) => (

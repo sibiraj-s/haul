@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react'
-import { ConnectionsIcon, LaptopIcon, MenuBarIcon, PauseIcon, QueueIcon, ScheduleIcon } from './Icons'
+import { BrowserIcon, ConnectionsIcon, LockIcon, QueueIcon, RemoteIcon, ScheduleIcon } from './Icons'
 
 const features: { Icon: ComponentType<{ className?: string }>; title: string; body: string }[] = [
   {
@@ -8,29 +8,29 @@ const features: { Icon: ComponentType<{ className?: string }>; title: string; bo
     body: 'Up to 16 connections per file, even over Wi‑Fi, Ethernet and tethering at once. Big downloads finish much faster.',
   },
   {
-    Icon: PauseIcon,
-    title: 'Pause and resume',
-    body: 'Pick up right where you left off, even after a restart or a dropped connection. Expired link? Swap in a fresh one.',
-  },
-  {
     Icon: QueueIcon,
     title: 'A queue that runs itself',
     body: 'Queue up downloads and Haul works through them in order, as many at a time as you like.',
   },
   {
-    Icon: MenuBarIcon,
-    title: 'Lives in the menu bar',
-    body: 'Live speed and progress at a glance. Manage everything without opening a window.',
+    Icon: BrowserIcon,
+    title: 'Works with your browser',
+    body: 'Chrome, Firefox, Brave, Edge, Vivaldi and Arc hand their downloads to Haul. Safari adds Download with Haul to links.',
+  },
+  {
+    Icon: RemoteIcon,
+    title: 'Add from anywhere',
+    body: 'Paste links from your phone or another computer, or add them with curl and scripts. Password protected.',
+  },
+  {
+    Icon: LockIcon,
+    title: 'Proxies and sign-ins',
+    body: 'System or custom HTTP and SOCKS5 proxies, servers that ask for a password, and your browser’s cookies for files behind a login.',
   },
   {
     Icon: ScheduleIcon,
     title: 'Speed limits and schedules',
     body: 'Cap your bandwidth, run big files overnight, and pause automatically on Personal Hotspot.',
-  },
-  {
-    Icon: LaptopIcon,
-    title: 'A native Mac app',
-    body: 'Built with SwiftUI. Notifications, Dock progress, smart folders, duplicate detection and checksums.',
   },
 ]
 
