@@ -56,7 +56,7 @@ jobs:
           VERSION: ${{ steps.next.outputs.version }}
         run: |
           {
-            echo "Merging this releases Haul $VERSION: the DMG, appcast and browser extensions are built and published automatically."
+            echo "Merging this releases Haul $VERSION: the DMG and appcast are built and published automatically, and the browser extensions if applicable."
             echo
             gh pr view "$PR" --json body --jq .body | sed -n '/^## /,$p'
           } | gh pr edit "$PR" --body-file -
