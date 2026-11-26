@@ -1,5 +1,11 @@
 # haul
 
+## 1.12.0
+
+### Minor Changes
+
+- af6ca5e: Clicking a finished download in the menu bar now opens the file; ⌘-click shows it in Finder
+
 ## 1.11.3
 
 ### Patch Changes
