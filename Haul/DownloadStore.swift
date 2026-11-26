@@ -718,6 +718,11 @@ final class DownloadStore {
         guard let url = d.fileURL else { return }
         _ = destinationFolder(for: d)  // makes sure a picked folder's sandbox access is active
         let fm = FileManager.default
+        // The archive was deleted after it was unpacked: what came out of it is what's left.
+        if !fm.fileExists(atPath: url.path), let extracted = d.extractedURL, fm.fileExists(atPath: extracted.path) {
+            Self.perform(.reveal, on: extracted)
+            return
+        }
         guard Extractor.canExtract(url.lastPathComponent), fm.fileExists(atPath: url.path),
             NSWorkspace.shared.urlForApplication(toOpen: url).flatMap({ Bundle(url: $0)?.bundleIdentifier })
                 == "com.apple.archiveutility"
@@ -735,8 +740,18 @@ final class DownloadStore {
         }
     }
 
-    func revealInFinder(_ d: Download) {
-        if let url = d.fileURL, FileManager.default.fileExists(atPath: url.path) {
+    /// What's on disk for a download: its file, else what was unpacked from it if the archive has
+    /// since been deleted. Touches the disk, so call it on a click rather than while drawing.
+    func fileOnDisk(_ download: Download) -> URL? {
+        let d = index(download.id).map { items[$0] } ?? download
+        _ = destinationFolder(for: d)  // makes sure a picked folder's sandbox access is active
+        let fm = FileManager.default
+        return [d.fileURL, d.extractedURL].lazy.compactMap { $0 }.first { fm.fileExists(atPath: $0.path) }
+    }
+
+    func revealInFinder(_ download: Download) {
+        let d = index(download.id).map { items[$0] } ?? download
+        if let url = fileOnDisk(d) {
             NSWorkspace.shared.activateFileViewerSelecting([url])
         } else {
             NSWorkspace.shared.open(destinationFolder(for: d))

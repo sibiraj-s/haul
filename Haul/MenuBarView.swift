@@ -187,8 +187,7 @@ struct MenuBarPopover: View {
                 VStack(spacing: 0) {
                     ForEach(recent) { d in
                         HoverRow {
-                            store.reveal(d.id)
-                            dismiss()
+                            openRecent(d, inFinder: NSEvent.modifierFlags.contains(.command))
                         } content: {
                             HStack(spacing: 10) {
                                 FileIcon(ext: "", kind: d.kind, width: 20, height: 25, band: 8, radius: 3)
@@ -198,6 +197,15 @@ struct MenuBarPopover: View {
                             }
                             .padding(.horizontal, 8)
                             .padding(.vertical, 6)
+                        }
+                        .help("Open — ⌘-click to show in Finder")
+                        .contextMenu {
+                            Button("Open") { openRecent(d, inFinder: false) }
+                            Button("Show in Finder") { openRecent(d, inFinder: true) }
+                            Button("Show in \(AppInfo.name)") {
+                                store.reveal(d.id)
+                                dismiss()
+                            }
                         }
                     }
                 }
@@ -227,6 +235,21 @@ struct MenuBarPopover: View {
         .font(.system(size: 13))
         .foregroundStyle(Theme.text)
         .frame(width: 320)
+    }
+
+    /// Opens a finished download, or shows it in Finder. Opening something still being unpacked
+    /// waits on Haul, so that shows it there with its progress, as does a file that's gone.
+    private func openRecent(_ d: Download, inFinder: Bool) {
+        // The live item: the row's copy may predate an unpack that has since started or finished.
+        let live = store.items.first { $0.id == d.id } ?? d
+        if inFinder {
+            store.revealInFinder(live)
+        } else if live.extracting || store.fileOnDisk(live) == nil {
+            store.reveal(d.id)
+        } else {
+            store.open(live)
+        }
+        dismiss()
     }
 }
 
